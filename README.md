@@ -28,36 +28,47 @@ the pacakge spec for `romp`:
 ```
 * For the installation of Spack, please refer to the guide in Spack project readme. 
 
-2. install gcc 9.2.0
+2. install environment modules 
+* We use `modules` to manage environment paths for installed pacakges. To check if environment modules is installed
+  on your system, please try `module` command in terminal. 
+  To install environment modules, please refer to section 'Bootstrapping Environment Modules' in      http://hpctoolkit.org/software-instructions.html#Building-a-New-Compiler
+  
+3. install gcc 9.2.0
+* We use a designated compiler to build all packages. Before building new compiler, please follow steps described in
+  'Building a New Compiler' shown in the link above.
 * fetch and install gcc 9.2.0 using spack 
  ``` spack install gcc@9.2.0```
-* (optional) create a symlink to the spack installed gcc location: 
- ```
- ln -s `spack location --install-dir gcc@9.2.0` /home/to/your/gcc/root
- ```
-* update spack compiler configuration file 
-  * `spack config edit compilers`
-  * inside the opened file, set up another compiler configuration entry using 
-  the path to the gcc 9.2.0 compiler. If you set up the symlink, it could be the symlink path. 
-  * configuration guide for the compiler can be found in: 
-    
-    https://spack-tutorial.readthedocs.io/en/latest/tutorial_configuration.html
+* using the gcc 9.2.0
+  * Again, please follow steps in section 'Using the New Compiler' shown in the link above.
     
 3. install ROMP
   ```
-  spack install romp@develop^dyninst%10.1.2~openmp%gcc@9.2.0
+  spack install romp@master
   ```
 ##### Setup environment variables 
- Setup environment variables so that we can run ROMP:
+ Setup environment variables so that we can run ROMP.
+ * First get the correct version of dyninst that ROMP uses. Because some other pacakges may also depend 
+ on dyninst and the variant of dyninst may be different. This difference is marked by different hash 
  ```
- export DYNINST_PREFIX=`spack location --install-dir dyninst`
- export ROMP_PREFIX=`spack location --install-dir romp`
- export LLVM_PREFIX=`spack location --install-dir llvm-openmp`
- export LIBRARY_PATH=$LLVM_PREFIX/lib
- export LD_LIBRARY_PATH=$LLVM_PREFIX/lib:$DYNINST_PREFIX/lib
- export DYNINSTAPI_RT_LIB=$DYNINST_PREFIX/lib/libdyninstAPI_RT.so
- export ROMP_PATH=$ROMP_PREFIX/lib/libomptrace.so
- export PATH=$ROMP_PREFIX/bin:$PATH
+  spack spec -l romp
+ ```
+ find the hash of dyninst that romp depends on. For example, if the hash is `jmaisrn`, then
+ ```
+ export DYNINSTAPI_RT_LIB=`spack location --install-dir dyninst/jmaisrn`/lib/libdyninstAPI_RT.so
+ ```
+ One can put the export statement above in .bashrc as long as the installed dyninst packages stays intact.
+ * Then load relevant modules, for example: 
+ ```
+   module load gcc-9.2.0-gcc-7.5.0-fp5any7
+   module load llvm-openmp-romp-mod-gcc-9.2.0-i46hs56
+   module load glog-0.3.5-gcc-9.2.0-sxceiv3
+   module load dyninst-10.1.2-gcc-9.2.0-jmaisrn
+   module load romp-master-gcc-9.2.0-dcspvk5
+ ```
+ To get the exact modules on your system, please use `module avail` command. 
+* Then export ROMP_PATH which is used by instrumentation client
+ ```
+   export ROMP_PATH=`spack location --install-dir omp`/lib/libromp.so
  ```
 #### Install ROMP using CMake
 People may want a faster development and iteration experience when debugging and developing ROMP. Installation using 
@@ -66,38 +77,28 @@ spack requires changes to be committed to remote repos. ROMP's cmake files make 
 1. install `spack`
 *  same as described in above section
 2. install dependent packages
-* gflags
-  ``` 
-  spack install gflags %gcc@9.2.0
-  ```
 * glog
   ```
-  spack install glog %gcc@9.2.0
+  spack install glog
   ```
 * llvm-openmp
   ```
-  spack install llvm-openmp@romp-mod%gcc@9.2.0
+  spack install llvm-openmp@romp-mod
   ```
 * dyninst
   ```
-  spack install dyninst@10.1.2%gcc@9.2.0
+  spack install dyninst@10.1.2~openmp
   ``` 
 3. setup envorinment variables for building
+* Note that the following environment variable setting does not need to go into .bashrc, it is only
+  used at build time. For example: 
   ```
-   export GLOG_PREFIX=`spack location --install-dir glog`
-   export GFLAGS_PREFIX=`spack location --install-dir gflags`
-   export LLVM_PREFIX=`spack location --install-dir llvm-openmp`
-   export BOOST_PREFIX=`spack location --install-dir boost`
-   export DYNINST_PREFIX=`spack location --install-dir dyninst`
-   export TBB_PREFIX=`spack location --install-dir intel-tbb`
-   export CPLUS_INCLUDE_PATH=$GLOG_PREFIX/include:\
-   $GFLAGS_PREFIX/include:$BOOST_PREFIX/include:\
-   $DYNINST_PREFIX/include:$TBB_PREFIX/include:\
-   $LLVM_PREFIX/include
-   export LIBRARY_PATH=$GLOG_PREFIX/lib:$GFLAGS_PREFIX/lib:$LLVM_PREFIX/lib
-   export LD_LIBRARY_PATH=$GLOG_PREFIX/lib:$GFLAGS_PREFIX/lib:\
-                           $LLVM_PREFIX/lib:$DYNINST_PREFIX/lib
-
+   module load gflags-2.1.2-gcc-9.2.0-frmos4j 
+   module load glog-0.3.5-gcc-9.2.0-sxceiv3
+   module load boost-1.72.0-gcc-9.2.0-j2rmx26
+   module load dyninst-10.1.2-gcc-9.2.0-jmaisrn
+   module load intel-tbb-2020.2-gcc-9.2.0-ybbbcc7
+   module load llvm-openmp-romp-mod-gcc-9.2.0-i46hs56
   ```
 4. build and install romp
 * suppose romp is located in `/home/to/romp`
@@ -107,8 +108,7 @@ spack requires changes to be committed to remote repos. ROMP's cmake files make 
    mkdir install
    cd build
          
-   cmake -DCMAKE_PREFIX_PATH="$GFLAGS_PREFIX;$GLOG_PREFIX;$DYNINST_PREFIX;$BOOST_PREFIX"
-         -DLLVM_PATH=$LLVM_PREFIX -DCMAKE_CXX_FLAGS=-std=c++17 
+   cmake -DCMAKE_CXX_FLAGS=-std=c++17 
          -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc 
          -DCMAKE_INSTALL_PREFIX=`pwd`/../install ..
    make
@@ -116,14 +116,15 @@ spack requires changes to be committed to remote repos. ROMP's cmake files make 
   ```
 ##### Setup environment variables 
 Setup environment variables so that we can run ROMP. 
-* Suppose romp root path is `/home/to/romp`:
+* The setting is almost the same as the setting used when romp is installed by spack.
+  Suppose romp root path is `/home/to/romp`:
 ```
- export ROMP_PATH=/home/to/romp/install/lib/libomptrace.so
- export DYNINSTAPI_RT_LIB=$DYNINST_PREFIX/lib/libdyninstAPI_RT.so
- export LD_LIBRARY_PATH=$GLOG_PREFIX/lib:\
-                        $LLVM_PREFIX/lib:\
-                        $DYNINST_PREFIX/lib
- export PATH=/home/to/romp/install/bin:$PATH
+ module load gcc-9.2.0-gcc-7.5.0-fp5any7
+ module load llvm-openmp-romp-mod-gcc-9.2.0-i46hs56
+ module load glog-0.3.5-gcc-9.2.0-sxceiv3
+ module load dyninst-10.1.2-gcc-9.2.0-jmaisrn
+ export DYNINSTAPI_RT_LIB=`spack location --install-dir dyninst/jmaisrn`/lib/libdyninstAPI_RT.so
+ export ROMP_PATH=/home/to/romp/install/lib/libromp.so
 ```
 
 ### Compile and instrument a program
