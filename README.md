@@ -35,13 +35,11 @@ the pacakge spec for `romp`:
   
 3. install gcc 9.2.0
 * We use a designated compiler to build all pacakges. Before building new compiler, please follow steps described in
-  'Building a New Compiler' in http://hpctoolkit.org/software-instructions.html#Building-a-New-Compiler
-  
+  'Building a New Compiler' shown in the link above.
 * fetch and install gcc 9.2.0 using spack 
  ``` spack install gcc@9.2.0```
 * using the gcc 9.2.0
-  * Again, please follow steps in section 'Using the New Compiler' to setup compiler in 
-  http://hpctoolkit.org/software-instructions.html#Building-a-New-Compiler
+  * Again, please follow steps in section 'Using the New Compiler' shown in the link above.
     
 3. install ROMP
   ```
