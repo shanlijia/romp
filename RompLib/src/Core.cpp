@@ -688,6 +688,106 @@ bool dispatchAnalysis(CheckCase checkCase, Label* hist, Label* cur,
   return false;
 }
 
+
+/*
+ * Calculate node relation between two task nodes, where the first pair of 
+ * different segments are both implicit task type.
+ * histRec: history record 
+ * curRec:  current record
+ * index:   index of first pair of different segment
+ * return node relation
+ *
+ * Note that there is no directed path from T(histLabel) to T(curLabel) 
+ * because happensBefore
+ */
+NodeRelation calcRelationImpImp(const Record& histRec, const Record& curRec,
+		                int index) {
+  
+  return eErrorRelation;     
+}
+
+NodeRelation calcRelationImpExp(const Record& histRec, const Record& curRec,
+                                int index) {
+  // TODO: implementation  
+  return eErrorRelation; 
+}	
+
+NodeRelation calcRelationImpWork(const Record& histRec, const Record& curRec,
+                                int index) {
+  // TODO: implementation  
+  return eErrorRelation; 
+}	
+
+NodeRelation calcRelationExpImp(const Record& histRec, const Record& curRec,
+                                int index) {
+  // TODO: implementation  
+  return eErrorRelation; 
+}	
+
+NodeRelation calcRelationExpExp(const Record& histRec, const Record& curRec,
+                                int index) {
+  // TODO: implementation  
+  return eErrorRelation; 
+}	
+
+NodeRelation calcRelationExpWork(const Record& histRec, const Record& curRec,
+                                int index) {
+  // TODO: implementation  
+  return eErrorRelation; 
+}	
+
+NodeRelation calcRelationWorkImp(const Record& histRec, const Record& curRec,
+                                int index) {
+  // TODO: implementation  
+  return eErrorRelation; 
+}	
+
+NodeRelation calcRelationWorkExp(const Record& histRec, const Record& curRec,
+                                int index) {
+  // TODO: implementation  
+  return eErrorRelation; 
+}	
+
+NodeRelation calcRelationWorkWork(const Record& histRec, const Record& curRec,
+                                int index) {
+  // TODO: implementation  
+  return eErrorRelation; 
+}	
+
+/*
+ * Dispatch task node relationship calculation functions depending on 
+ * the type of first different label segments. All cases are enumerated
+ * exhaustively.
+ */
+NodeRelation dispatchRelationCalc(CheckCase checkCase,
+	                          const Record& histRec,	
+				  const Record& curRec,
+                                  int index) {
+  switch(checkCase) {
+    case eImpImp:  
+      return calcRelationImpImp(histRec, curRec, index);
+    case eImpExp:
+      return calcRelationImpExp(histRec, curRec, index);
+    case eImpWork:
+      return calcRelationImpWork(histRec, curRec, index);
+    case eExpImp:
+      return calcRelationExpImp(histRec, curRec, index);
+    case eExpExp:
+      return calcRelationExpExp(histRec, curRec, index); 
+    case eExpWork:
+      return calcRelationExpWork(histRec, curRec, index);
+    case eWorkImp:
+      return calcRelationWorkImp(histRec, curRec, index);
+    case eWorkExp:
+      return calcRelationWorkExp(histRec, curRec, index);       
+    case eWorkWork:
+      return calcRelationWorkWork(histRec, curRec, index);
+    default:
+      return eErrorRelation; 
+  }
+  return eErrorRelation;
+}	
+
 /*
  * This function determines the action on access history depending on 
  * various conditions between hist record and cur record. This is where
@@ -702,6 +802,16 @@ RecordManagement manageAccessRecord(const Record& histRecord,
   auto curIsWrite = curRecord.isWrite();
   auto histLockSet = histRecord.getLockSet();
   auto curLockSet = curRecord.getLockSet();
+  auto histLabel = histRecord.getLabel(); 
+  auto curLabel = curRecord.getLabel(); 
+  auto histSegType = histLabel->getKthSegment(diffIndex)->getType();
+  auto curSegType = curLabel->getKthSegment(diffIndex)->getType();
+  auto checkCase = buildCheckCase(histSegType, curSegType);
+  if (!isHistBeforeCurrent) {
+    // determine node relationship when no happens-before relation exists
+    auto relation = dispatchRelationCalc(checkCase, histRecord, curRecord, 
+		  diffIndex);
+  }
   if (((histIsWrite && curIsWrite) || !histIsWrite) && 
           isHistBeforeCurrent && isSubset(curLockSet, histLockSet)) {
     return eDelHist;  
@@ -728,5 +838,107 @@ void modifyAccessHistory(RecordManagement decision,
     it++;
   }
 }
+
+/*
+ * T(histLabel) and T(curLabel) have the same rank. 
+ * Determine the relation 
+ */
+NodeRelation calcRelationSameRank(Label* histLabel, Label* curLabel, 
+		                  int index) {
+  auto histSegment = histLabel->getKthSegment(index); 
+  auto curSegment = curLabel->getKthSegment(index);
+  auto histType = histSegment->getType();
+  auto curType = curSegment->getType();   
+  auto lenHistLabel = histLabel->getLabelLength();
+  auto lenCurLabel = curLabel->getLabelLength(); 
+  if (histType == eImplicit && curType == eImplicit) {
+   /*
+    * T(histLabel) and T(curLabel) fall under the parallel region by 
+    * T(histLabel, index - 1). We need to pick the node that is the 'least'
+    * synchronized.
+    */
+    if ((lenHistLabel - 1) == index) {
+      // T(histLabel) is a leaf task
+      return eNonSiblingHistCover;  
+    } else if ((lenCurLabel - 1) == index) {
+      return eNonSiblingCurCover;
+    } else {
+      /*
+       * T(histLabel) and T(curLabel) are both deep under the parallel region 
+       * We would like to apply a heuristic here: 
+       * First we define the rank of a task as the length of its task label.
+       * Conjecture: Task with the smallest rank is the least synchronized. 
+       * Task with the same rank, the 'order of synchronization' is defined as 
+       * follows: 
+       * 1. Explicit tasks without task-related synchronization (since it only
+       * synchronizes at the end of the wrapping parallel region).
+       * 2. Explicit tasks with task-related syncs (e.g., taskwait, taskgroup)
+       * Task-related syncs will restrict the tasks' sync order, but compared 
+       * to strict fork-join parallelism, the sync is still relaxed.
+       * 3. Worksharing tasks without implicit barrier. 
+       * 4. Worksharing tasks with implicit barrier.
+       * 5. Worksharing tasks with ordered construct.
+       * 6. Implicit tasks.
+       */                
+      if (lenHistLabel < lenCurLabel) {
+        return eNonSiblingHistCover;
+      } else if (lenHistLabel > lenCurLabel) {
+        return eNonSiblingCurCover;
+      } else {
+        // same rank, check type of the children tasks 
+        return calcRelationSameRank(histLabel, curLabel, index);  
+      }
+    }
+  } 
+  return eErrorRelation;
+}
+
+/*
+ * Given two task labels, compute the node relationship
+ * histLabel[index] and curLabel[index] are the first pair of different segment
+ * Note that T(histLabel) is recorded in the access history; T(curLabel) is 
+ * the task state associated with the current memory access.
+ */
+NodeRelation calcNodeRelation(Label* histLabel, Label* curLabel, 
+		              int index, bool isPrefix) {
+  if (isPrefix) { // T(histLabel) is parent of T(curLabel)
+    return eParentChild;
+  }  
+  /*
+   * Now that T(histLabel) is not the parent task of T(curLabel),
+   * we check the remaining label segments starting from index, to decide 
+   * the relationship between the two task nodes.
+   * Based on the OpenMP semantics, there are several cases: 
+   * 1. T(histLabel) and T(curLabel) are two sibling task nodes, i.e., they
+   * share the same direct parent.)
+   * 2. T(histLabel) and T(curLabel) are non-sibling task nodes, i.e., they
+   * have a lowest common ancestor task node: 
+   * T(histLabel, index-1)=T(curLabel,index-1). But they don't share the same
+   * direct parent. In this case, depending on the relative order, one task 
+   * node has greater coverage, i.e., covers the largest unsynchronized area.
+   */ 
+  auto lenHistLabel = histLabel->getLabelLength();
+  auto lenCurLabel = curLabel->getLabelLength();   
+  if (lenHistLabel == lenCurLabel && index == (lenHistLabel - 1)) {
+    return eSibling;
+  }
+  /*
+   * If the two task nodes are not sibling, determine their relative 
+   * relationship by comparing the task label. We would like to 
+   * separate this analysis from happens-before analysis.
+   */    
+  /* 
+   * T(histLabel, index - 1) and T(curLabel, index - 1) is are the same task.
+   */
+  if (lenHistLabel == lenCurLabel) {
+    return calcRelationSameRank(histLabel, curLabel, index);
+  } else if (lenHistLabel < lenCurLabel) {
+
+  } else {
+
+  }
+  return eErrorRelation;
+}
+  
 
 }
