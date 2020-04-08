@@ -49,7 +49,7 @@ do {                                                         \
 #define register_callback(name) register_callback_t(name, name##_t)
 
 void initPapiSde() {
-  gPapiHandle = papi_sde_init("ROMP");
+  gPapiHandle = papi_sde_init("romp");
   papi_sde_register_counter(gPapiHandle, "test_event", 
 		  PAPI_SDE_RO|PAPI_SDE_DELTA, PAPI_SDE_long_long, &gLocalVal);
   LOG(INFO) << "register papi sde";
