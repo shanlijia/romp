@@ -93,6 +93,7 @@ spack requires changes to be committed to remote repos. ROMP's cmake files make 
 * Note that the following environment variable setting does not need to go into .bashrc, it is only
   used at build time. For example: 
   ```
+   module load gflags-2.1.2-gcc-9.2.0-frmos4j 
    module load glog-0.3.5-gcc-9.2.0-sxceiv3
    module load boost-1.72.0-gcc-9.2.0-j2rmx26
    module load dyninst-10.1.2-gcc-9.2.0-jmaisrn
