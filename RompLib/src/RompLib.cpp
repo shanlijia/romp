@@ -15,6 +15,7 @@
 #include "TaskData.h"
 #include "ThreadData.h"
 
+
 namespace fs = std::filesystem;
 
 namespace romp {
@@ -180,6 +181,14 @@ void checkAccess(void* address,
     checkInfo.byteAddress = curAddress;
     checkDataRace(accessHistory, curLabel, curLockSet, checkInfo);
   }
+}
+
+papi_handle_t papi_sde_hook_list_events(papi_sde_fptr_struct_t* fptrStruct) {
+  gPapiHandle = fptrStruct->init("ROMP");       
+  fptrStruct->register_counter(gPapiHandle, "test_event", 
+		  PAPI_SDE_RO|PAPI_SDE_DELTA, PAPI_SDE_long_long, &gLocalVal);
+  fptrStruct->describe_counter(gPapiHandle, "test_event", "test papi sde");               
+  return gPapiHandle;
 }
 
 }
