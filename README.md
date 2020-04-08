@@ -34,7 +34,7 @@ the pacakge spec for `romp`:
   To install environment modules, please refer to section 'Bootstrapping Environment Modules' in      http://hpctoolkit.org/software-instructions.html#Building-a-New-Compiler
   
 3. install gcc 9.2.0
-* We use a designated compiler to build all pacakges. Before building new compiler, please follow steps described in
+* We use a designated compiler to build all packages. Before building new compiler, please follow steps described in
   'Building a New Compiler' shown in the link above.
 * fetch and install gcc 9.2.0 using spack 
  ``` spack install gcc@9.2.0```
