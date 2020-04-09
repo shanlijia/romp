@@ -15,7 +15,6 @@
 #include "TaskData.h"
 #include "ThreadData.h"
 
-
 namespace fs = std::experimental::filesystem;
 
 namespace romp {
