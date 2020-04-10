@@ -15,6 +15,8 @@
 #include "TaskData.h"
 #include "ThreadData.h"
 
+#include "papi_sde_interface.h"
+
 namespace fs = std::experimental::filesystem;
 
 namespace romp {
@@ -23,6 +25,7 @@ using LabelPtr = std::shared_ptr<Label>;
 using LockSetPtr = std::shared_ptr<LockSet>;
 
 ShadowMemory<AccessHistory> shadowMemory;
+extern void* gNumRecOverflowCntr;
 
 /*
  * Driver function to do data race checking and access history management.
@@ -180,18 +183,6 @@ void checkAccess(void* address,
     checkInfo.byteAddress = curAddress;
     checkDataRace(accessHistory, curLabel, curLockSet, checkInfo);
   }
-}
-
-/*
- * Hook for papi_native_avail utility.
- * Should only be called by papi_native_avail.
- */
-papi_handle_t papi_sde_hook_list_events(papi_sde_fptr_struct_t* fptrStruct) { 
-  papi_handle_t sdeHandle;
-  sdeHandle = fptrStruct->init("romp");  
-  fptrStruct->create_counter(sdeHandle, "RECORD_NUM_THRESHOLD", 
-		  PAPI_SDE_DELTA, &gRecordNumberCntrHandle);
-  return sdeHandle;
 }
 
 }

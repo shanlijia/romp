@@ -7,6 +7,7 @@
 #include "QueryFuncs.h"
 
 namespace romp {
+extern void* gNumRecOverflowCntr;
 /*
  * Note: comments for functions contain some notation about task and its 
  * label. We describe the notation in this comment here to clarify and to ease
