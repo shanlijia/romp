@@ -10,7 +10,7 @@ namespace romp {
 void* sdeCounters[1];
 
 static const char * eventNames[1] = {
-  "REC_NUM_OVERFLOW_COUNT"
+  "REC_NUM_CNT"
 };
 
 void initPapiSde() {
