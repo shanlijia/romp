@@ -7,7 +7,7 @@
 
 namespace romp {
 
-void* gNumRecOverflowCntr;
+void* sdeCounters[1];
 
 static const char * eventNames[1] = {
   "REC_NUM_OVERFLOW_COUNT"
@@ -17,7 +17,7 @@ void initPapiSde() {
   papi_handle_t sdeHandle;
   sdeHandle = papi_sde_init("romp");
   papi_sde_create_counter(sdeHandle, eventNames[0],
-		  PAPI_SDE_DELTA, &gNumRecOverflowCntr); 
+		  PAPI_SDE_DELTA, &sdeCounters[0]); 
   LOG(INFO) << "papi sde events initialized";
 }
 
@@ -31,7 +31,7 @@ papi_handle_t papi_sde_hook_list_events(papi_sde_fptr_struct_t* fptrStruct) {
   papi_handle_t sdeHandle;
   sdeHandle = fptrStruct->init("romp");  
   fptrStruct->create_counter(sdeHandle, romp::eventNames[0],
-		  PAPI_SDE_DELTA, &romp::gNumRecOverflowCntr);
+		  PAPI_SDE_DELTA, &romp::sdeCounters[0]);
   fptrStruct->describe_counter(sdeHandle, romp::eventNames[0],
         "Number of times the access history size is larger than threshold");
   return sdeHandle;

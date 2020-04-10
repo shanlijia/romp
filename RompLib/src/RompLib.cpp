@@ -12,6 +12,7 @@
 #include "Label.h"
 #include "LockSet.h"
 #include "ShadowMemory.h"
+#include "Stats.h"
 #include "TaskData.h"
 #include "ThreadData.h"
 
@@ -25,7 +26,7 @@ using LabelPtr = std::shared_ptr<Label>;
 using LockSetPtr = std::shared_ptr<LockSet>;
 
 ShadowMemory<AccessHistory> shadowMemory;
-extern void* gNumRecOverflowCntr;
+extern void* sdeCounters[1];
 
 /*
  * Driver function to do data race checking and access history management.
@@ -43,6 +44,9 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     return;
   }
   auto records = accessHistory->getRecords();
+  if (records->size() > REC_NUM_THRESHOLD) {
+    papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW], 1); 
+  }
   if (accessHistory->dataRaceFound()) {
     /* 
      * data race has already been found on this memory location, romp only 
