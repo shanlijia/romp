@@ -3,7 +3,7 @@ find_package(glog REQUIRED)
 file(GLOB SOURCES src/*.cpp)
 file(GLOB PAPI_SOURCES papi/*.c)
 
-add_library(romp SHARED ${SOURCES})
+add_library(romp SHARED ${SOURCES} ${PAPI_SOURCES})
 
 find_library(SYMTABAPI "libsymtabAPI.so")
           

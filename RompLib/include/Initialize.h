@@ -33,8 +33,7 @@ ompt_get_parallel_info_t omptGetParallelInfo;
 ompt_get_thread_data_t omptGetThreadData;
 ompt_get_task_memory_t omptGetTaskMemory;
 
-long long gLocalVal;
-papi_handle_t gPapiHandle = nullptr;
+void* gRecordNumberCntrHandle;
 /* 
  * Define macro for registering ompt callback functions. 
  */
@@ -49,9 +48,10 @@ do {                                                         \
 #define register_callback(name) register_callback_t(name, name##_t)
 
 void initPapiSde() {
-  gPapiHandle = papi_sde_init("romp");
-  papi_sde_register_counter(gPapiHandle, "test_event", 
-		  PAPI_SDE_RO|PAPI_SDE_DELTA, PAPI_SDE_long_long, &gLocalVal);
+  papi_handle_t sdeHandle;
+  sdeHandle = papi_sde_init("romp");
+  papi_sde_create_counter(sdeHandle, "RECORD_NUM_THRESHOLD", 
+		  PAPI_SDE_DELTA, &gRecordNumberCntrHandle);
   LOG(INFO) << "register papi sde";
 }
 /** 
