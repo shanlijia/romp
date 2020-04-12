@@ -46,15 +46,6 @@ do {                                                         \
 
 #define register_callback(name) register_callback_t(name, name##_t)
 
-/*
-void initPapiSde() {
-  papi_handle_t sdeHandle;
-  sdeHandle = papi_sde_init("romp");
-  papi_sde_create_counter(sdeHandle, "RECORD_NUM_THRESHOLD", 
-		  PAPI_SDE_DELTA, &gRecordNumberCntrHandle);
-  LOG(INFO) << "register papi sde";
-}
-*/
 /** 
  *  initialize OMPT interface by registering callback functions
  */
