@@ -4,7 +4,7 @@ file(GLOB SOURCES src/*.cpp)
 
 add_library(romp SHARED ${SOURCES})
 
-find_library(PAPI "libpapi.so.6.0")
+find_library(PAPI "libpapi.so")
 find_library(SYMTABAPI "libsymtabAPI.so")
           
 target_include_directories(romp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
