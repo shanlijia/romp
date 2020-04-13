@@ -3,7 +3,7 @@
 #include <glog/raw_logging.h>
 #include <stdlib.h>
 
-#include "papi_sde_interface.h"
+#include <papi_sde_interface.h>
 
 namespace romp {
 
@@ -13,6 +13,7 @@ static const char * eventNames[1] = {
   "REC_NUM_CNT"
 };
 
+__attribute__((constructor))
 void initPapiSde() {
   papi_handle_t sdeHandle;
   sdeHandle = papi_sde_init("romp");

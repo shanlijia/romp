@@ -85,7 +85,6 @@ int omptInitialize(ompt_function_lookup_t lookup,
   omptGetThreadData = (ompt_get_thread_data_t)lookup("ompt_get_thread_data");
   omptGetTaskMemory = (ompt_get_task_memory_t)lookup("ompt_get_task_memory"); 
   
-  initPapiSde();
   gOmptInitialized = true;
   return 1;
 }
