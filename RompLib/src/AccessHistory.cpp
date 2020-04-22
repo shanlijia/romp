@@ -33,7 +33,7 @@ void AccessHistory::clearFlag(AccessHistoryFlag flag) {
   _state &= ~flag; 
 }
 
-void AccessHistory::clearFlags() {
+void AccessHistory::clearState() {
   _state = 0; 
 }
 

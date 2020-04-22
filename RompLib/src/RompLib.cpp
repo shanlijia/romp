@@ -55,12 +55,13 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      * The memory slot is recycled because of the end of explicit task. 
      * reset the memory state flag and clear the access records.
      */
-     accessHistory->clearFlags();
+     accessHistory->clearState();
      records->clear();
      return;
   }
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
+
   if (records->empty()) {
     // no access record, add current access to the record
     records->push_back(curRecord);

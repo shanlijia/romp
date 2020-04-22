@@ -20,8 +20,8 @@ public:
   McsLock& getLock();
   std::vector<Record>* getRecords();
   void setFlag(AccessHistoryFlag flag);
-  void clearFlags();
   void clearFlag(AccessHistoryFlag flag);
+  void clearState();
   bool dataRaceFound() const;
   bool memIsRecycled() const;
   uint64_t getState() const;
