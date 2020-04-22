@@ -35,9 +35,6 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
   McsNode node;
   LockGuard guard(&(accessHistory->getLock()), &node);
-  if (checkInfo.hwLock) {
-    return;
-  }
   auto dataSharingType = checkInfo.dataSharingType;
   if (dataSharingType == eThreadPrivateBelowExit || 
           dataSharingType == eStaticThreadPrivate) {
@@ -70,7 +67,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      return;
   }
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
-          checkInfo.taskPtr, checkInfo.instnAddr);
+          checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
   if (records->empty()) {
     // no access record, add current access to the record
     records->push_back(curRecord);
