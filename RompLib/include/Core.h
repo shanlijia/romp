@@ -33,15 +33,6 @@ enum NodeRelation {
   eErrorRelation,
 };
 
-enum NodeRelation {
-  eParentChild,
-  eSibling,
-  eNonSiblingSameCover,
-  eNonSiblingHistCover,
-  eNonSiblingCurCover,  
-  eErrorRelation,
-};
-
 bool happensBefore(Label* histLabel, Label* curLabel, int& diffIndex);
 bool analyzeSiblingImpTask(Label* histLabel, Label* curLabel, int index);
 bool analyzeSameTask(Label* histLabel, Label* curLabel, int index);
