@@ -33,6 +33,15 @@ enum NodeRelation {
   eErrorRelation,
 };
 
+enum NodeRelation {
+  eParentChild,
+  eSibling,
+  eNonSiblingSameCover,
+  eNonSiblingHistCover,
+  eNonSiblingCurCover,  
+  eErrorRelation,
+};
+
 bool happensBefore(Label* histLabel, Label* curLabel, int& diffIndex);
 bool analyzeSiblingImpTask(Label* histLabel, Label* curLabel, int index);
 bool analyzeSameTask(Label* histLabel, Label* curLabel, int index);
@@ -73,6 +82,7 @@ NodeRelation calcRelationSameRank(Label* hist, Label* cur, int index);
 NodeRelation dispatchRelationCalc(CheckCase checkCase, 
 		                  const Record& histRec, 
 				  const Record& curRec,  
+<<<<<<< HEAD
 		                  int diffIndex);
 
 std::pair<AccessHistoryState, RecordManageAction> 
@@ -80,4 +90,7 @@ stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
               const Record& histRecord, const Record& curRecord);
 
 
+=======
+		                  int index);
+>>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
 }
