@@ -26,9 +26,11 @@ namespace romp {
  * accesses. Return true if there is race condition
  */
 bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord, 
-        bool& isHistBeforeCur, int& diffIndex) {
-  auto histLabel = histRecord.getLabel(); 
-  auto curLabel = curRecord.getLabel(); 
+                          bool isHistBeforeCur) {
+  if (!histRecord.isWrite() && !curRecord.isWrite()) {
+    // two read accesses do not form data race
+    return false;
+  }
   if (analyzeMutualExclusion(histRecord, curRecord)) {
     return false;
   }  
@@ -38,7 +40,6 @@ bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord,
     // that in this phase no data race is genereted by reduction method.
     return false;
   }
-  isHistBeforeCur = happensBefore(histLabel, curLabel, diffIndex);
   if (!isHistBeforeCur) {
     // further check explicit task dependence if current task and history task 
     // are both explicit tasks. If no task dependence, return true
@@ -698,7 +699,7 @@ bool dispatchAnalysis(CheckCase checkCase, Label* hist, Label* cur,
  * return node relation
  *
  * Note that there is no directed path from T(histLabel) to T(curLabel) 
- * because happensBefore
+ * because happens-before relationship does not hold.
  */
 NodeRelation calcRelationImpImp(const Record& histRec, const Record& curRec,
 		                int index) {
@@ -758,6 +759,7 @@ NodeRelation calcRelationWorkWork(const Record& histRec, const Record& curRec,
  * Dispatch task node relationship calculation functions depending on 
  * the type of first different label segments. All cases are enumerated
  * exhaustively.
+ * index: the index of first pair of different segments.
  */
 NodeRelation dispatchRelationCalc(CheckCase checkCase,
 	                          const Record& histRec,	
@@ -789,29 +791,82 @@ NodeRelation dispatchRelationCalc(CheckCase checkCase,
 }	
 
 /*
+ * This function implements the state machine for access history management.
+ * oldState: the old state of access history
+ * relation: the relation between two nodes, one represents current access, 
+ *           the other represents hist access
+ * histRecord: access record of history access
+ * curRecord:  access record of current access 
+ *
+ * Return a pair that contains the new access history state, and the action
+ * that should be taken to comply with the new state.
+ */
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
+	      const Record& histRecord, const Record& curRecord) {
+  switch(oldState) {
+    case eSingleRead:
+      break;
+    case eSingleWrite:
+      break;
+    case eSiblingReadRead:
+      break; 
+    case eSiblingReadWrite:
+      break;
+    case eSiblingWriteWrite:
+      break; 
+    case eNonSiblingReadRead:
+      break;
+    case eNonSiblingReadWrite:
+      break;
+    case eNonSiblingWriteWrite:
+      break;
+  }	  
+  return std::make_pair(eEmpty, eNoOp);
+}
+/*
  * This function determines the action on access history depending on 
  * various conditions between hist record and cur record. This is where
- * access history maintenence decision is made.
- * Here we implement the baseline pruning algorithm
+ * access history maintenence action is made. 
+ * Generally, we will calculate node relationship between two task nodes
+ * here, and use this node relationship to guide the access history 
+ * maintenence. For each memory location, we maintain a state machine. 
+ * The state manchine accepts the node relationship, memory access type 
+ * as input. It transfers between different states and emits access 
+ * history management actions.
  */
-RecordManagement manageAccessRecord(const Record& histRecord, 
-                                    const Record& curRecord,
-                                    bool isHistBeforeCurrent,
-                                    int diffIndex) {
+RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
+		                      const Record& histRecord, 
+                                      const Record& curRecord,
+                                      bool isHistBeforeCurrent,
+                                      int diffIndex) {
+ /*
   auto histIsWrite = histRecord.isWrite();  
   auto curIsWrite = curRecord.isWrite();
   auto histLockSet = histRecord.getLockSet();
   auto curLockSet = curRecord.getLockSet();
+ */
   auto histLabel = histRecord.getLabel(); 
   auto curLabel = curRecord.getLabel(); 
   auto histSegType = histLabel->getKthSegment(diffIndex)->getType();
   auto curSegType = curLabel->getKthSegment(diffIndex)->getType();
-  auto checkCase = buildCheckCase(histSegType, curSegType);
+  auto checkCase = buildCheckCase(histSegType, curSegType);   
+  NodeRelation relation = eErrorRelation;
+  if (isHistBeforeCurrent) {
+    relation = eAncestorChild; 
+  } else {
+    relation = dispatchRelationCalc(checkCase, histRecord, curRecord, 
+		                    diffIndex);
+  }
   if (!isHistBeforeCurrent) {
     // determine node relationship when no happens-before relation exists
     auto relation = dispatchRelationCalc(checkCase, histRecord, curRecord, 
 		  diffIndex);
+  } else {
+    auto nodeRelation = eAncestorChild;
   }
+   
+  /*
   if (((histIsWrite && curIsWrite) || !histIsWrite) && 
           isHistBeforeCurrent && isSubset(curLockSet, histLockSet)) {
     return eDelHist;  
@@ -820,19 +875,20 @@ RecordManagement manageAccessRecord(const Record& histRecord,
             isSubset(histLockSet, curLockSet)) {
       return eSkipAddCur; 
   }
+  */
   return eNoOp;
 } 
 
                          
 /*
  * This function modifies the access record associated with a memory address
- * based on the management decision. It advances the iterator to the container
+ * based on the management action. It advances the iterator to the container
  * that holds access records 
  */
-void modifyAccessHistory(RecordManagement decision, 
+void modifyAccessHistory(RecordManageAction action, 
                          std::vector<Record>* records,
                          std::vector<Record>::iterator& it) {
-  if (decision == eDelHist) {
+  if (action == eDelHist) {
     it = records->erase(it);
   } else {
     it++;
@@ -902,7 +958,7 @@ NodeRelation calcRelationSameRank(Label* histLabel, Label* curLabel,
 NodeRelation calcNodeRelation(Label* histLabel, Label* curLabel, 
 		              int index, bool isPrefix) {
   if (isPrefix) { // T(histLabel) is parent of T(curLabel)
-    return eParentChild;
+    return eAncestorChild;
   }  
   /*
    * Now that T(histLabel) is not the parent task of T(curLabel),

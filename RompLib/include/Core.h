@@ -24,14 +24,8 @@ enum CheckCase {
   eWorkWork = eWorkShare | (eWorkShare << CASE_SHIFT),
 }; 
 
-enum RecordManagement{
-  eNoOp,
-  eSkipAddCur,
-  eDelHist,
-};
-
 enum NodeRelation {
-  eParentChild,
+  eAncestorChild,
   eSibling,
   eNonSiblingSameCover,
   eNonSiblingHistCover,
@@ -55,7 +49,8 @@ bool analyzeOrderedDescendents(Label* histLabel, int index, uint64_t histPhase);
 bool analyzeSyncChain(Label* label, int index);
 bool analyzeMutualExclusion(const Record& histRecord, const Record& curRecord);
 bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord, 
-                          bool& isHistBeforeCur, int& diffIndex);
+                          bool isHistBeforeCur);
+
 bool analyzeTaskGroupSync(Label* histLabel, Label* curLabel, int index);
 
 bool dispatchAnalysis(CheckCase checkCase, Label* hist, Label* cur, int index);
@@ -63,12 +58,13 @@ uint64_t computeExitRank(uint64_t phase);
 uint64_t computeEnterRank(uint64_t phase);
 inline CheckCase buildCheckCase(SegmentType histType, SegmentType curType);
 
-RecordManagement manageAccessRecord(const Record& histRecord,
-                                    const Record& curRecord, 
-                                    bool isHistBeforeCur,
-                                    int diffIndex);
+RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
+		                      const Record& histRecord,
+                                      const Record& curRecord, 
+                                      bool isHistBeforeCur,
+                                      int diffIndex);
 
-void modifyAccessHistory(RecordManagement decision,
+void modifyAccessHistory(RecordManageAction action,
                          std::vector<Record>* records,
                          std::vector<Record>::iterator& cit);
 
@@ -77,5 +73,11 @@ NodeRelation calcRelationSameRank(Label* hist, Label* cur, int index);
 NodeRelation dispatchRelationCalc(CheckCase checkCase, 
 		                  const Record& histRec, 
 				  const Record& curRec,  
-		                  int index);
+		                  int diffIndex);
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
+              const Record& histRecord, const Record& curRecord);
+
+
 }
