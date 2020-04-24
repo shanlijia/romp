@@ -699,11 +699,7 @@ bool dispatchAnalysis(CheckCase checkCase, Label* hist, Label* cur,
  * return node relation
  *
  * Note that there is no directed path from T(histLabel) to T(curLabel) 
-<<<<<<< HEAD
  * because happens-before relationship does not hold.
-=======
- * because happensBefore
->>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
  */
 NodeRelation calcRelationImpImp(const Record& histRec, const Record& curRec,
 		                int index) {
@@ -763,10 +759,7 @@ NodeRelation calcRelationWorkWork(const Record& histRec, const Record& curRec,
  * Dispatch task node relationship calculation functions depending on 
  * the type of first different label segments. All cases are enumerated
  * exhaustively.
-<<<<<<< HEAD
  * index: the index of first pair of different segments.
-=======
->>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
  */
 NodeRelation dispatchRelationCalc(CheckCase checkCase,
 	                          const Record& histRec,	
@@ -797,7 +790,6 @@ NodeRelation dispatchRelationCalc(CheckCase checkCase,
   return eErrorRelation;
 }	
 
-<<<<<<< HEAD
 /*
  * This function implements the state machine for access history management.
  * oldState: the old state of access history
@@ -832,8 +824,6 @@ stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
   }	  
   return std::make_pair(eEmpty, eNoOp);
 }
-=======
->>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
 /*
  * This function determines the action on access history depending on 
  * various conditions between hist record and cur record. This is where
@@ -855,15 +845,11 @@ RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
   auto curIsWrite = curRecord.isWrite();
   auto histLockSet = histRecord.getLockSet();
   auto curLockSet = curRecord.getLockSet();
-<<<<<<< HEAD
  */
-=======
->>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
   auto histLabel = histRecord.getLabel(); 
   auto curLabel = curRecord.getLabel(); 
   auto histSegType = histLabel->getKthSegment(diffIndex)->getType();
   auto curSegType = curLabel->getKthSegment(diffIndex)->getType();
-<<<<<<< HEAD
   auto checkCase = buildCheckCase(histSegType, curSegType);   
   NodeRelation relation = eErrorRelation;
   if (isHistBeforeCurrent) {
@@ -872,22 +858,8 @@ RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
     relation = dispatchRelationCalc(checkCase, histRecord, curRecord, 
 		                    diffIndex);
   }
-=======
-  auto checkCase = buildCheckCase(histSegType, curSegType);
->>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
-  if (!isHistBeforeCurrent) {
-    // determine node relationship when no happens-before relation exists
-    auto relation = dispatchRelationCalc(checkCase, histRecord, curRecord, 
-		  diffIndex);
-<<<<<<< HEAD
-  } else {
-    auto nodeRelation = eAncestorChild;
-  }
    
   /*
-=======
-  }
->>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
   if (((histIsWrite && curIsWrite) || !histIsWrite) && 
           isHistBeforeCurrent && isSubset(curLockSet, histLockSet)) {
     return eDelHist;  
@@ -979,11 +951,7 @@ NodeRelation calcRelationSameRank(Label* histLabel, Label* curLabel,
 NodeRelation calcNodeRelation(Label* histLabel, Label* curLabel, 
 		              int index, bool isPrefix) {
   if (isPrefix) { // T(histLabel) is parent of T(curLabel)
-<<<<<<< HEAD
     return eAncestorChild;
-=======
-    return eParentChild;
->>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
   }  
   /*
    * Now that T(histLabel) is not the parent task of T(curLabel),

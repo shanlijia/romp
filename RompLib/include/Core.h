@@ -82,7 +82,6 @@ NodeRelation calcRelationSameRank(Label* hist, Label* cur, int index);
 NodeRelation dispatchRelationCalc(CheckCase checkCase, 
 		                  const Record& histRec, 
 				  const Record& curRec,  
-<<<<<<< HEAD
 		                  int diffIndex);
 
 std::pair<AccessHistoryState, RecordManageAction> 
@@ -90,7 +89,4 @@ stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
               const Record& histRecord, const Record& curRecord);
 
 
-=======
-		                  int index);
->>>>>>> 5dc5fb2f747cafea875ac793b7ce801b8f79a03a
 }
