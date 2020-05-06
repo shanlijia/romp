@@ -7,9 +7,9 @@
 
 namespace romp {
 
-void* sdeCounters[1];
+void* sdeCounters[2];
 
-static const char * eventNames[1] = {
+static const char * eventNames[2] = {
   "REC_NUM_CNT",
   "TEST",
 };
