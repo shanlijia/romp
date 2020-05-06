@@ -33,20 +33,32 @@ void AccessHistory::clearFlag(AccessHistoryFlag flag) {
   _state &= ~flag; 
 }
 
-void AccessHistory::clearFlags() {
+void AccessHistory::clearAll() {
   _state = 0; 
+  _records->clear();
 }
 
 bool AccessHistory::dataRaceFound() const {
-  return (_state & eDataRaceFound) != 0;
+  return (_state & eDataRaceFound) == eDataRaceFound;
 }
 
 bool AccessHistory::memIsRecycled() const {
-  return (_state & eMemoryRecycled) != 0;
+  return (_state & eMemoryRecycled) == eMemoryRecycled;
 }
 
-uint64_t AccessHistory::getState() const {
-  return _state;
+/*
+ * Return access history state which is stored in the upper 32 bits of _state.
+ */
+AccessHistoryState AccessHistory::getState() const {
+  return static_cast<AccessHistoryState>(_state >> ACCESS_HISTORY_SHIFT);
+}
+
+/*
+ * Set access history state which is stored in the upper 32 bits of _state.
+ */
+void AccessHistory::setState(AccessHistoryState state) {
+  _state &= ACCESS_HISTORY_MASK;
+  _state |= static_cast<uint64_t>(state) << ACCESS_HISTORY_SHIFT;  
 }
 
 }

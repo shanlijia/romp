@@ -26,9 +26,11 @@ namespace romp {
  * accesses. Return true if there is race condition
  */
 bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord, 
-        bool& isHistBeforeCur, int& diffIndex) {
-  auto histLabel = histRecord.getLabel(); 
-  auto curLabel = curRecord.getLabel(); 
+                          bool isHistBeforeCur) {
+  if (!histRecord.isWrite() && !curRecord.isWrite()) {
+    // two read accesses do not form data race
+    return false;
+  }
   if (analyzeMutualExclusion(histRecord, curRecord)) {
     return false;
   }  
@@ -38,7 +40,6 @@ bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord,
     // that in this phase no data race is genereted by reduction method.
     return false;
   }
-  isHistBeforeCur = happensBefore(histLabel, curLabel, diffIndex);
   if (!isHistBeforeCur) {
     // further check explicit task dependence if current task and history task 
     // are both explicit tasks. If no task dependence, return true
@@ -385,7 +386,7 @@ bool analyzeSyncChain(Label* label, int startIndex) {
 bool analyzeSameTask(Label* histLabel, Label* curLabel, int diffIndex) {
   auto lenHistLabel = histLabel->getLabelLength(); 
   auto lenCurLabel = curLabel->getLabelLength();
-  if (diffIndex == (lenHistLabel - 1)) {
+  if (isLeafNode(diffIndex, lenHistLabel)) {
     /*
      * T(histLabel, diffIndex) == T(histLabel), which is leaf task. 
      * In this case, it is only possible to have T(histLabel) happens before
@@ -394,7 +395,7 @@ bool analyzeSameTask(Label* histLabel, Label* curLabel, int diffIndex) {
     return true;
   }      
   // T(histLabel, diffIndex) is not leaf task
-  if (diffIndex == (lenCurLabel - 1)) {
+  if (isLeafNode(diffIndex, lenCurLabel)) {
     /*
      * T(curLabel, diffIndex) is leaf task, while T(histLabel) is descendent
      * task of T(histLabel, diffIndex). We assert that T(histLabel, diffIndex+1)
@@ -688,44 +689,864 @@ bool dispatchAnalysis(CheckCase checkCase, Label* hist, Label* cur,
   return false;
 }
 
+inline bool isLeafNode(int diffIndex, int labelLength) {
+  return diffIndex == (labelLength - 1);
+}
+
+/*
+ * Calculate node relationship when T(histRec, diffIndex) and 
+ * T(curRec, diffIndex) refer to the same task node.
+ */
+NodeRelation calcRelationSameTask(const Record& histRec, const Record& curRec,
+		                  int diffIndex) {
+  /*
+  auto histLabel = histRec.getLabel();
+  auto curLabel = curRec.getLabel();    
+  auto histNextSeg = histLabel->getKthSegment(diffIndex + 1);
+  auto histNextType = histNextSeg->getType();
+  auto curNextSeg = curLabel->getKthSegment(diffIndex + 1);
+  auto curNextType = curNextSeg->getType();
+  RAW_CHECK(!(curNextType == eImplicit && histNextType == eImplicit), 
+		  "not expecting next segments to be both implicit");
+   */
+  /*
+   * In this case, explicit task must be invovled
+   */
+  RAW_LOG(FATAL, "case not implemented");
+}
+
+NodeRelation calcRelationSiblingTasks(const Record& histRec, 
+		                          const Record& curRec,
+					  int diffIndex) {
+  auto histLabel = histRec.getLabel();    
+  auto curLabel = curRec.getLabel();
+  auto lenHistLabel = histLabel->getLabelLength();
+  auto lenCurLabel = curLabel->getLabelLength();  
+  // TODO: adjust logic here when considering explicit tasking
+  if (lenHistLabel == lenCurLabel) {
+    if (isLeafNode(diffIndex, lenHistLabel)) {
+      return eSibling;
+    } else {
+      return eNonSiblingSameRank;
+    }
+  } else if (lenHistLabel < lenCurLabel) {
+    return eNonSiblingHistCover;
+  } else {
+    return eNonSiblingCurCover;
+  }
+  return eErrorRelation;     
+}
+
+/*
+ * Dispatch task node relationship calculation functions.
+ * diffIndex: If non negative, represents the index of first pair of different
+ *            segments. If negative, it has special meanings in terms of 
+ *            node relations.e.g., eLeftIsPrefix
+ */
+NodeRelation calcNodeRelation(const Record& histRec, const Record& curRec,
+			      bool isHistBeforeCurrent, int diffIndex) {
+  auto histLabel = histRec.getLabel(); 
+  auto curLabel = curRec.getLabel();      
+  auto lenHistLabel = histLabel->getLabelLength();
+  auto lenCurLabel = curLabel->getLabelLength();  
+  if (isHistBeforeCurrent) {
+    if (isParentChildRelation(diffIndex, lenHistLabel, lenCurLabel)) {
+      return eParentChild;
+    } else if (diffIndex == eSameLabel) {
+      return eSameNode;        
+    } else {
+      return eAncestorChild;   
+    }
+  } else { 
+    // no happens-before relationship between hist record and cur record.	
+    auto histIsLeaf = isLeafNode(diffIndex, lenHistLabel);
+    auto curIsLeaf = isLeafNode(diffIndex, lenCurLabel);
+    if (histIsLeaf && curIsLeaf) {
+      // both hist record and cur record are leaf nodes at the time of access
+      return eSibling;  
+    } else if (histIsLeaf) {
+      // hist record is leaf, cur record has deeper descendents
+      return eNonSiblingHistCover; 
+    } else if (curIsLeaf) {
+      // cur record is leaf, hist record has deeper descendents
+      return eNonSiblingCurCover;   
+    } 
+    // both hist record and cur record have descendent tasks from 
+    // T(hist,diffIndex) and T(cur, diffIndex)
+    // `diffIndex` points to the first pair of different label segment
+    // The logic here is the same as the one in happensBefore() analysis
+    auto histSegment = histLabel->getKthSegment(diffIndex); 
+    auto curSegment = curLabel->getKthSegment(diffIndex);
+    uint64_t histOffset, curOffset, histSpan, curSpan; 
+    histSegment->getOffsetSpan(histOffset, histSpan);
+    curSegment->getOffsetSpan(curOffset, curSpan);
+    if (histSpan != curSpan) {
+      RAW_LOG(FATAL, "left span: %lu != right span: %lu", histSpan, curSpan);
+    }
+    if (histSpan == 1) { // explicit task or work share task or initial task
+      auto histType = histSegment->getType();
+      auto curType = curSegment->getType();
+      RAW_CHECK(histType == curType, "not expecting hist seg type\
+                  != cur seg type");
+      switch(histType) {
+        case eImplicit:
+        /* 
+         * T(histLabel, diffIndex) and T(curLabel, diffIndex) are both the root
+         * task, T(curLabel) should have encountered a barrier counstruct. In 
+	 * this case, it is not possible. Because it means happens-before 
+	 * relation exists.
+         */
+          RAW_LOG(FATAL, "dispatchRelationCalc(), not expected case 0"); 
+	  return eErrorRelation;
+        case eWorkShare:
+          if (static_cast<WorkShareSegment*>(histSegment)->isSingleExecutor()&& 
+              static_cast<WorkShareSegment*>(curSegment)->isSingleExecutor()) { 
+            return calcRelationSameTask(histRec, curRec, diffIndex);
+          } else {
+            return calcRelationSiblingTasks(histRec, curRec, diffIndex);  
+          }
+        case eExplicit:
+          /*
+           * T(histLabel, diffIndex) and T(curLabel, diffIndex) are both explicit
+           * tasks. In this case, they are the same explicit task. If the segment
+           * is different, 
+           */
+          return calcRelationSameTask(histRec, curRec, diffIndex);  
+        default:
+          break;
+      }
+      RAW_LOG(FATAL, "unexpected segment type: %d", histType);
+      return eErrorRelation;
+    } else { // left span == right span and span > 1, implicit task
+      if (histOffset != curOffset) { 
+        auto span = histSpan;
+        if (histOffset % span == curOffset % span) {
+	  /*
+	   * this case implies happens-before relationship
+	   */
+          RAW_LOG(FATAL, "dispatchRelationCalc(), not expected case 1"); 
+         } else {
+           return calcRelationSiblingTasks(histRec, curRec, diffIndex);
+         }
+       } else { 
+         return calcRelationSameTask(histRec, curRec, diffIndex); 
+       }
+    }
+  }
+  return eErrorRelation;
+}	
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferSingleRead(const NodeRelation relation, 
+		        const Record& histRecord,
+		        const Record& curRecord) {
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  switch(relation) {
+    case eParentChild:
+    case eAncestorChild:
+      nextState = curIsWrite? eSingleWrite : eSingleRead;
+      action = eDelHistAddCur;
+      break;  
+    case eSameNode:
+      nextState = curIsWrite? eSingleWrite : eSingleRead;
+      action = curIsWrite? eDelHistAddCur : eNoAction;
+      break;
+    case eSibling:
+      // current access and hist access form sibling node relation
+      nextState = curIsWrite? eSiblingRW : eSiblingRR; 
+      action = eAddCur;
+      break;
+    case eNonSiblingHistCover:
+    case eNonSiblingCurCover:
+    case eNonSiblingSameRank:
+      // since only one record exists in access history, add current
+      nextState = curIsWrite? eNonSiblingRW : eNonSiblingRR;
+      action = eAddCur;
+      break; 
+    default:
+      break;
+  } 
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single read");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferSingleWrite(const NodeRelation relation, 
+		         const Record& histRecord,
+		         const Record& curRecord) {
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  switch(relation) {
+    case eParentChild: 
+      nextState = curIsWrite? eSingleWrite : eParentChildWR;
+      action = curIsWrite? eDelHistAddCur : eAddCur;
+      break;  
+    case eAncestorChild: 
+      nextState = curIsWrite? eSingleWrite : eAncestorChildWR;
+      action = curIsWrite? eDelHistAddCur : eAddCur;
+      break;  
+    case eSameNode: 
+      nextState = eSingleWrite; 
+      action = eNoAction;
+      break;
+    case eSibling:
+      nextState = curIsWrite? eSiblingWW : eSiblingRW;  
+      action = eAddCur; 
+      break;
+    case eNonSiblingHistCover:
+    case eNonSiblingCurCover:
+    case eNonSiblingSameRank:
+      nextState = curIsWrite? eNonSiblingWW : eNonSiblingRW;
+      action = eAddCur;
+      break;
+    default:
+      break;  
+  } 
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single write");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferSiblingRR(const NodeRelation relation, 
+		             const Record& histRecord,
+		             const Record& curRecord) {
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  switch(relation) {
+    case eParentChild:    
+    case eAncestorChild: 
+      nextState = curIsWrite? eNonSiblingRW : eNonSiblingRR;
+      action = eDelHistAddCur;
+      break;  
+    case eSameNode:
+    case eSibling:
+      nextState = curIsWrite? eSiblingRW : eSiblingRR;
+      action = curIsWrite? eDelHistAddCur : eNoAction;      
+      break;
+    case eNonSiblingHistCover:
+    case eNonSiblingCurCover:
+    case eNonSiblingSameRank:  
+      nextState = curIsWrite? eNonSiblingRW : eNonSiblingRR; 
+      action = eDelHistAddCur; 
+      break; 
+    default:
+      break;
+  } 
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on sibling read read case");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferSiblingRW(const NodeRelation relation, 
+		             const Record& histRecord,
+		             const Record& curRecord) {
+/*
+ * If access history is at sibling read write state. The history read and the 
+ * history write must be protected by at least one common lock. Otherwise a 
+ * data race should have already been reported between these two accesses.
+ *
+ * If we focus on the limited case where no lock is used, this is actually
+ * a not reachable state.
+ *
+ */
+  auto histIsWrite = histRecord.isWrite();
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  if (histIsWrite) {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+        nextState = curIsWrite? eNonSiblingRW : eSiblingRW; 
+	action = curIsWrite? eDelHistAddCur : eNoAction;
+	break;
+      case eSameNode:
+      case eSibling:
+        nextState = eSiblingRW; 
+	action = eNoAction;
+        break;
+      case eNonSiblingCurCover:
+      case eNonSiblingHistCover:
+      case eNonSiblingSameRank:
+        nextState = curIsWrite? eNonSiblingWW: eNonSiblingRW;
+	action = eDelOtherAddCur;
+        break;
+      default:
+        break;
+    }
+  } else {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+        nextState = curIsWrite? eNonSiblingWW: eNonSiblingRR; 
+	action = eDelHistAddCur;
+        break;  
+      case eSameNode:
+      case eSibling:
+        nextState = eSiblingRW;
+	action = eNoAction;
+	break;
+      case eNonSiblingHistCover:
+      case eNonSiblingCurCover:
+      case eNonSiblingSameRank:
+        // since only one record exists in access history, add current
+        nextState = eNonSiblingRW;
+        action = curIsWrite? eDelOtherAddCur : eDelHistAddCur;
+        break; 
+      default:
+        break;
+    }
+  }
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single read");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferSiblingWW(const NodeRelation relation, 
+		               const Record& histRecord,
+		               const Record& curRecord) {
+/*
+ * If access history is at sibling read write state. The history read and the 
+ * history write must be protected by at least one common lock. Otherwise a 
+ * data race should have already been reported between these two accesses.
+ *
+ * If we focus on the limited case where no lock is used, this is actually
+ * a not reachable state.
+ *
+ */
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  switch(relation) {
+    case eParentChild:
+    case eAncestorChild:
+      nextState = curIsWrite? eNonSiblingWW : eSiblingWW; 
+      action = curIsWrite? eDelHistAddCur : eNoAction;
+      break;
+    case eSameNode:
+    case eSibling:
+      nextState = eSiblingWW; 
+      action = eNoAction;
+      break;
+    case eNonSiblingCurCover:
+    case eNonSiblingHistCover:
+    case eNonSiblingSameRank:
+      nextState = curIsWrite? eNonSiblingWW: eNonSiblingRW;
+      action = eDelHistAddCur;
+      break;
+    default:
+      break;
+  }
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single read");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferNonSiblingRR(const NodeRelation relation, 
+		                const Record& histRecord,
+		                const Record& curRecord) {
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  switch(relation) {
+    case eParentChild:
+    case eAncestorChild: 
+      nextState = curIsWrite? eNonSiblingRW : eNonSiblingRR;    
+      action = eDelHistAddCur; 
+      break;  
+    case eSameNode:
+      nextState = curIsWrite? eNonSiblingRW : eNonSiblingRR;
+      action = curIsWrite? eDelHistAddCur : eNoAction;
+      break;
+    case eSibling:
+      nextState = curIsWrite? eNonSiblingRW : eNonSiblingRR;
+      action = curIsWrite? eDelHistAddCur : eNoAction;
+      break;
+    case eNonSiblingHistCover:
+    case eNonSiblingCurCover:
+    case eNonSiblingSameRank:
+      nextState = curIsWrite? eNonSiblingRW : eNonSiblingRR;      
+      action = curIsWrite? eDelHistAddCur : eNoAction;
+      break;
+    default:
+      break;   
+  } 
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on non sibling read read case");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferNonSiblingRW(const NodeRelation relation, 
+		                const Record& histRecord,
+		                const Record& curRecord) {
+/*
+ * If access history is at sibling read write state. The history read and the 
+ * history write must be protected by at least one common lock. Otherwise a 
+ * data race should have already been reported between these two accesses.
+ *
+ * If we focus on the limited case where no lock is used, this is actually
+ * a not reachable state.
+ */
+  auto histIsWrite = histRecord.isWrite();
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  if (histIsWrite) {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+        nextState = eNonSiblingRW; 
+	action = curIsWrite? eDelHistAddCur : eNoAction;
+	break;
+      case eSameNode:
+      case eSibling:
+        nextState = eNonSiblingRW;
+	action = eNoAction;
+        break;
+      case eNonSiblingCurCover:
+      case eNonSiblingHistCover:
+      case eNonSiblingSameRank:
+        nextState = curIsWrite? eNonSiblingWW: eNonSiblingRW;
+	action = eDelOtherAddCur;
+        break;
+      default:
+        break;
+    }
+  } else {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+        nextState = curIsWrite? eNonSiblingWW: eNonSiblingRW;
+	action =  eDelHistAddCur;
+        break;  
+      case eSameNode:
+      case eSibling:
+        nextState = eNonSiblingRW;
+	action = eNoAction;
+	break;
+      case eNonSiblingHistCover:
+      case eNonSiblingCurCover:
+      case eNonSiblingSameRank:
+        // since only one record exists in access history, add current
+        nextState = eNonSiblingRW;
+        action = curIsWrite? eDelOtherAddCur : eDelHistAddCur;
+        break; 
+      default:
+        break;
+    }
+  }
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single read");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferNonSiblingWW(const NodeRelation relation, 
+		          const Record& histRecord,
+		          const Record& curRecord) {
+/*
+ * If access history is at sibling read write state. The history read and the 
+ * history write must be protected by at least one common lock. Otherwise a 
+ * data race should have already been reported between these two accesses.
+ *
+ * If we focus on the limited case where no lock is used, this is actually
+ * a not reachable state.
+ *
+ */
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  switch(relation) {
+    case eParentChild:
+    case eAncestorChild:
+      nextState = curIsWrite? eNonSiblingWW : eNonSiblingRW;
+      action = eDelHistAddCur;
+      break;
+    case eSameNode:
+    case eSibling:
+      nextState = eNonSiblingWW;
+      action = eNoAction;
+      break;
+    case eNonSiblingCurCover:
+    case eNonSiblingHistCover:
+    case eNonSiblingSameRank:
+      nextState = curIsWrite? eNonSiblingWW: eNonSiblingRW;
+      action = eDelOtherAddCur;
+      break;
+    default:
+      break;
+  }
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single read");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferParentChildWR(const NodeRelation relation, 
+		                    const Record& histRecord,
+		                    const Record& curRecord) {
+  auto histIsWrite = histRecord.isWrite();
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  if (histIsWrite) {
+    switch(relation) {
+      case eParentChild:
+        nextState = curIsWrite? eSiblingRW : eWRR; 
+	action = curIsWrite? eDelHistAddCur : eAddCur;
+	break;
+      case eAncestorChild:
+	nextState = curIsWrite? eNonSiblingRW: eWRR;
+        action = curIsWrite? eDelHistAddCur: eAddCur;
+        break;  
+      case eSameNode:
+        nextState = eParentChildWR; 
+	action = eNoAction;
+        break;
+      case eSibling:
+        nextState = curIsWrite? eSiblingWW: eSiblingRW;
+	action = eDelOtherAddCur;
+        break;
+      case eNonSiblingCurCover:
+      case eNonSiblingHistCover:
+      case eNonSiblingSameRank:
+        nextState = curIsWrite? eNonSiblingWW: eNonSiblingRW;
+	action = eDelOtherAddCur;
+        break;
+      default:
+        break;
+    }
+  } else {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+        nextState = curIsWrite? eSingleWrite : eAncestorChildWR; 
+	action = curIsWrite? eDelAllAddCur : eDelHistAddCur;
+        break;  
+      case eSameNode:
+        nextState = eParentChildWR;
+	action = eNoAction;
+	break;
+      case eSibling:
+        nextState = curIsWrite? eSiblingRW : eWRR;
+        action = curIsWrite? eDelOtherAddCur : eAddCur;
+        break;
+      case eNonSiblingHistCover:
+      case eNonSiblingCurCover:
+      case eNonSiblingSameRank:
+        // since only one record exists in access history, add current
+        nextState = eNonSiblingRW;
+        action = eDelOtherAddCur;
+        break; 
+      default:
+        break;
+    }
+  }
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single read");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferAncestorChildWR(const NodeRelation relation, 
+		                    const Record& histRecord,
+		                    const Record& curRecord) {
+  auto histIsWrite = histRecord.isWrite();
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  if (histIsWrite) {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+	nextState = curIsWrite? eNonSiblingRW: eWRR;
+        action = curIsWrite? eDelHistAddCur: eAddCur;
+        break;  
+      case eSameNode:
+        nextState = eAncestorChildWR; 
+	action = eNoAction;
+        break;
+      case eSibling:
+        nextState = curIsWrite? eSiblingWW: eSiblingRW;
+	action = eDelOtherAddCur;
+        break;
+      case eNonSiblingCurCover:
+      case eNonSiblingHistCover:
+      case eNonSiblingSameRank:
+        nextState = curIsWrite? eNonSiblingWW: eNonSiblingRW;
+	action = eDelOtherAddCur;
+        break;
+      default:
+        break;
+    }
+  } else {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+        nextState = curIsWrite? eSingleWrite : eAncestorChildWR; 
+	action = curIsWrite? eDelAllAddCur : eDelHistAddCur;
+        break;  
+      case eSameNode:
+        nextState = eAncestorChildWR;
+	action = eNoAction;
+	break;
+      case eSibling:
+        nextState = curIsWrite? eSiblingRW : eWRR;
+        action = curIsWrite? eDelOtherAddCur : eAddCur;
+        break;
+      case eNonSiblingHistCover:
+      case eNonSiblingCurCover:
+      case eNonSiblingSameRank:
+        // since only one record exists in access history, add current
+        nextState = eNonSiblingRW;
+        action = eDelOtherAddCur;
+        break; 
+      default:
+        break;
+    }
+  }
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single read");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferWRR(const NodeRelation relation, 
+		          const Record& histRecord,
+		          const Record& curRecord) {
+  auto histIsWrite = histRecord.isWrite();
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  if (histIsWrite) {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+      case eSameNode:
+        nextState = eWRR; 
+        action = eNoAction;
+        break;  
+      case eSibling:
+        nextState = curIsWrite? eNonSiblingRW: eSiblingRW;
+	action = curIsWrite? eDelHistAddCur : eDelOtherAddCur;
+        break;
+      case eNonSiblingCurCover:
+      case eNonSiblingHistCover:
+      case eNonSiblingSameRank:
+        nextState = curIsWrite? eNonSiblingWW: eNonSiblingRW;
+	action = eDelOtherAddCur;
+        break;
+      default:
+        break;
+    }
+  } else {
+    switch(relation) {
+      case eParentChild:
+      case eAncestorChild:
+        nextState = curIsWrite? eNonSiblingRW: eWRR; 
+	action = eDelHistAddCur;
+        break;  
+      case eSameNode:
+        nextState = curIsWrite? eNonSiblingRW : eWRR;
+	action = curIsWrite? eDelHistAddCur : eNoAction;
+	break;
+      case eSibling:
+        nextState = curIsWrite? eNonSiblingRW: eWRR;
+        action = curIsWrite? eDelHistAddCur: eNoAction;
+        break;
+      case eNonSiblingHistCover:
+      case eNonSiblingCurCover:
+      case eNonSiblingSameRank:
+        // since only one record exists in access history, add current
+        nextState = curIsWrite? eNonSiblingRW : eWRR;
+        action = curIsWrite? eDelOtherAddCur : eNoAction;
+        break; 
+      default:
+        break;
+    }
+  }
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on single read");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+
+
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransferMultiRec(const NodeRelation relation, 
+		      const Record& histRecord,
+		      const Record& curRecord) {
+  auto histIsWrite = histRecord.isWrite();  
+  auto curIsWrite = curRecord.isWrite();
+  AccessHistoryState nextState = eUndefinedState;
+  RecordManageAction action = eErrorAction;
+  nextState = eMultiRec;
+  if (histIsWrite) {
+    switch(relation) {
+      case eAncestorChild: 
+	action = curIsWrite? eDelHistAddCur : eAddCur;
+        break;  
+      case eSibling:
+      case eNonSiblingHistCover:
+      case eNonSiblingCurCover:
+	action = eAddCur; 
+        break; 
+    } 
+  } else {
+    switch(relation) {
+      case eAncestorChild: 
+	action = eDelHistAddCur;
+        break;  
+      case eSibling:
+      case eNonSiblingHistCover:
+      case eNonSiblingCurCover:
+	action = eAddCur;
+        break; 
+    } 
+  }
+  if (action == eErrorAction || nextState == eUndefinedState) {
+    RAW_LOG(FATAL, "state transfer error on non sibling read write case");
+  } 
+  return std::make_pair(nextState, action);
+}
+
+/*
+ * This function implements the state machine for access history management.
+ * oldState: the old state of access history
+ * relation: the relation between two nodes, one represents current access, 
+ *           the other represents hist access
+ * histRecord: access record of history access
+ * curRecord:  access record of current access 
+ *
+ * Return a pair that contains the new access history state, and the action
+ * that should be taken to comply with the new state.
+ */
+std::pair<AccessHistoryState, RecordManageAction> 
+stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
+	      const Record& histRec, const Record& curRec) {
+  switch(oldState) {
+    case eSingleRead:
+      return stateTransferSingleRead(relation, histRec, curRec);
+    case eSingleWrite:
+      return stateTransferSingleWrite(relation, histRec, curRec);   
+    case eSiblingRR:
+      return stateTransferSiblingRR(relation, histRec, curRec);
+    case eSiblingRW:
+      return stateTransferSiblingRW(relation, histRec, curRec);
+    case eSiblingWW:
+      return stateTransferSiblingWW(relation, histRec, curRec);
+    case eNonSiblingRR:
+      return stateTransferNonSiblingRR(relation, histRec, curRec);   
+    case eNonSiblingWW:
+      return stateTransferNonSiblingWW(relation, histRec, curRec);
+    case eParentChildWR:
+      return stateTransferParentChildWR(relation, histRec, curRec);
+    case eAncestorChildWR:
+      return stateTransferAncestorChildWR(relation, histRec, curRec); 
+    case eWRR:
+      return stateTransferWRR(relation, histRec, curRec); 
+    case eMultiRec:
+      return stateTransferMultiRec(relation, histRec, curRec);
+
+    default:
+      RAW_LOG(FATAL, "not expecting to be default case: %d", oldState);
+  }	  
+  return std::make_pair(eUndefinedState, eErrorAction);
+}
+
+bool isParentChildRelation(int diffIndex, int histLabelLength, 
+		           int curLabelLength) {
+  return diffIndex == eLeftIsPrefix && histLabelLength == (curLabelLength - 1);
+}
+
 /*
  * This function determines the action on access history depending on 
  * various conditions between hist record and cur record. This is where
- * access history maintenence decision is made.
- * Here we implement the baseline pruning algorithm
+ * access history maintenence action is made. 
+ * Generally, we will calculate node relationship between two task nodes
+ * here, and use this node relationship to guide the access history 
+ * maintenence. For each memory location, we maintain a state machine. 
+ * The state manchine accepts the node relationship, memory access type 
+ * as input. It transfers between different states and emits access 
+ * history management actions.
  */
-RecordManagement manageAccessRecord(const Record& histRecord, 
-                                    const Record& curRecord,
-                                    bool isHistBeforeCurrent,
-                                    int diffIndex) {
-  auto histIsWrite = histRecord.isWrite();  
-  auto curIsWrite = curRecord.isWrite();
-  auto histLockSet = histRecord.getLockSet();
-  auto curLockSet = curRecord.getLockSet();
-  if (((histIsWrite && curIsWrite) || !histIsWrite) && 
-          isHistBeforeCurrent && isSubset(curLockSet, histLockSet)) {
-    return eDelHist;  
-  } else if (diffIndex == static_cast<int>(eSameLabel) && 
-            ((!histIsWrite && !curIsWrite) || histIsWrite) && 
-            isSubset(histLockSet, curLockSet)) {
-      return eSkipAddCur; 
-  }
-  return eNoOp;
+RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
+		                      const Record& histRecord, 
+                                      const Record& curRecord,
+                                      bool isHistBeforeCurrent,
+                                      int diffIndex) {
+  NodeRelation relation = eErrorRelation;
+  auto histLabel = histRecord.getLabel();
+  auto curLabel = curRecord.getLabel();
+  relation = calcNodeRelation(histRecord, curRecord, isHistBeforeCurrent,
+	                          diffIndex);	  
+  auto [nextState, action] = stateTransfer(accessHistory->getState(),relation, 
+		                           histRecord, curRecord);
+  accessHistory->setState(nextState);
+  return action;
 } 
 
                          
 /*
  * This function modifies the access record associated with a memory address
- * based on the management decision. It advances the iterator to the container
+ * based on the management action. It advances the iterator to the container
  * that holds access records 
  */
-void modifyAccessHistory(RecordManagement decision, 
+void modifyAccessHistory(RecordManageAction action, 
                          std::vector<Record>* records,
-                         std::vector<Record>::iterator& it) {
-  if (decision == eDelHist) {
+                         std::vector<Record>::iterator& it,
+			 const Record& curRecord) {
+  if (action == eNoAction) {
+    // proceeds to check next history access record
+    it++;  
+  } else if (action == eDelHist) {
     it = records->erase(it);
-  } else {
+  } else if (action == eDelHistAddCur) {
+    RAW_LOG(INFO, "action is eDelHistAddCur");
+    it = records->erase(it); 
+    it = records->insert(it, curRecord);
     it++;
+  } else if (action == eAddCur) {
+    RAW_LOG(INFO, "action is eAddCur");
+    it = records->insert(it, curRecord);   
+    it++;
+  } else if (action == eDelAllAddCur) {
+    RAW_LOG(INFO, "action is eDelAllAddCur");
+    records->clear();
+    records->push_back(curRecord);
+    it = records->begin();
+  } else if (action == eDelOtherAddCur) {
+    RAW_LOG(INFO, "action is eDelOtherAddCur");
+    auto histRecord = *it;
+    records->clear();
+    records->push_back(histRecord);
+    records->push_back(curRecord);
+    it = records->begin();
+  } else {
+    RAW_LOG(FATAL, "unexpected action");
   }
 }
 

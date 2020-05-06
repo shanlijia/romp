@@ -57,7 +57,7 @@ void Label::setLastKthSegment(int k, const std::shared_ptr<Segment>& segment) {
 
 Segment* Label::getKthSegment(int k) {
   if (k > _label.size()) {
-    RAW_LOG(FATAL, "index %d out of bound", k);
+    RAW_LOG(FATAL, "index %d out of bound label size: %d", k, _label.size());
   }
   return _label.at(k).get();
 }

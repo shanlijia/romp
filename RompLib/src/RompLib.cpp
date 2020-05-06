@@ -62,27 +62,32 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      * The memory slot is recycled because of the end of explicit task. 
      * reset the memory state flag and clear the access records.
      */
-     accessHistory->clearFlags();
-     records->clear();
+     accessHistory->clearAll();
      return;
   }
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
+
   if (records->empty()) {
     // no access record, add current access to the record
     records->push_back(curRecord);
+    if (checkInfo.isWrite) {
+      accessHistory->setState(eSingleWrite);
+    } else {
+      accessHistory->setState(eSingleRead); 
+    }
   } else {
     // check previous access records with current access
     auto isHistBeforeCurrent = false;
+    int diffIndex;
     auto it = records->begin();
     std::vector<Record>::const_iterator cit;
-    auto skipAddCur = false;
-    int diffIndex;
     while (it != records->end()) {
       cit = it; 
       auto histRecord = *cit;
-      if (analyzeRaceCondition(histRecord, curRecord, isHistBeforeCurrent, 
-                  diffIndex)) {
+      auto histLabel = histRecord.getLabel();
+      isHistBeforeCurrent = happensBefore(histLabel, curLabel.get(), diffIndex);
+      if (analyzeRaceCondition(histRecord, curRecord, isHistBeforeCurrent)) {
         gDataRaceFound = true;
         gNumDataRace++;
         if (gReportLineInfo) {
@@ -97,15 +102,10 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
         }
         accessHistory->setFlag(eDataRaceFound);  
       }
-      auto decision = manageAccessRecord(histRecord, curRecord, 
-              isHistBeforeCurrent, diffIndex);
-      if (decision == eSkipAddCur) {
-        skipAddCur = true;
-      }
-      modifyAccessHistory(decision, records, it);
-    }
-    if (!skipAddCur) {
-      records->push_back(curRecord); 
+      auto action = manageAccessRecord(accessHistory,
+		                       histRecord, curRecord, 
+                                       isHistBeforeCurrent, diffIndex);
+      modifyAccessHistory(action, records, it, curRecord);
     }
   }
 }
