@@ -10,7 +10,8 @@ namespace romp {
 void* sdeCounters[1];
 
 static const char * eventNames[1] = {
-  "REC_NUM_CNT"
+  "REC_NUM_CNT",
+  "TEST",
 };
 
 __attribute__((constructor))
@@ -19,6 +20,8 @@ void initPapiSde() {
   sdeHandle = papi_sde_init("romp");
   papi_sde_create_counter(sdeHandle, eventNames[0],
 		  PAPI_SDE_DELTA, &sdeCounters[0]); 
+  papi_sde_create_counter(sdeHandle, eventNames[1],
+		  PAPI_SDE_DELTA, &sdeCounters[1]); 
   LOG(INFO) << "papi sde events initialized";
 }
 

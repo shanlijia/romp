@@ -44,6 +44,9 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
   if (records->size() > REC_NUM_THRESHOLD) {
     papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW], 1); 
   }
+  if (records->size() > REC_NUM_THRESHOLD_2) {
+    papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW_2], 1); 
+  }
   if (accessHistory->dataRaceFound()) {
     /* 
      * data race has already been found on this memory location, romp only 
