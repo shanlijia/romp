@@ -72,11 +72,9 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
   } else {
     // check previous access records with current access
     auto isHistBeforeCurrent = false;
-    auto happensBeforeAnalyzed = false;          
     int diffIndex;
     auto it = records->begin();
     std::vector<Record>::const_iterator cit;
-    auto skipAddCur = false;
     while (it != records->end()) {
       cit = it; 
       auto histRecord = *cit;
@@ -97,16 +95,10 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
         }
         accessHistory->setFlag(eDataRaceFound);  
       }
-      auto decision = manageAccessRecord(accessHistory,
-		                         histRecord, curRecord, 
-                                         isHistBeforeCurrent, diffIndex);
-      if (decision == eSkipAddCur) {
-        skipAddCur = true;
-      }
-      modifyAccessHistory(decision, records, it);
-    }
-    if (!skipAddCur) {
-      records->push_back(curRecord); 
+      auto action = manageAccessRecord(accessHistory,
+		                       histRecord, curRecord, 
+                                       isHistBeforeCurrent, diffIndex);
+      modifyAccessHistory(action, records, it, curRecord);
     }
   }
 }

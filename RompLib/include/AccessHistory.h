@@ -23,19 +23,27 @@ enum AccessHistoryState {
   eEmpty = 0x0, 
   eSingleRead = 0x1,
   eSingleWrite = 0x2,
-  eSiblingReadRead = 0x3,
-  eSiblingReadWrite = 0x4,
-  eSiblingWriteWrite = 0x5,
-  eNonSiblingReadRead = 0x6,
-  eNonSiblingReadWrite = 0x7,
-  eNonSiblingWriteWrite = 0x8,
-  eMultiRec = 0x9,
+  eSiblingRR = 0x3,
+  eSiblingRW = 0x4,
+  eSiblingWW = 0x5,
+  eNonSiblingRR = 0x6,
+  eNonSiblingRW = 0x8,
+  eNonSiblingWW = 0x8,
+  eMultiRec = 0x9, // current not reachable
+  eUndefinedState = 0xa,
+  eAncestorChildWR = 0xb,
+  eParentChildWR = 0xc,
+  eWRR = 0xd, // W->R1, W->R2
 };
 
 enum RecordManageAction {
-  eNoOp,
-  eSkipAddCur,
+  eNoAction,
+  eDelHistAddCur,
+  eAddCur,
   eDelHist,
+  eErrorAction,
+  eDelAllAddCur,
+  eDelOtherAddCur,
 };
 
 class AccessHistory {

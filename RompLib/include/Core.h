@@ -26,10 +26,12 @@ enum CheckCase {
 
 enum NodeRelation {
   eAncestorChild,
+  eParentChild,
+  eSameNode,
   eSibling,
-  eNonSiblingSameCover,
   eNonSiblingHistCover,
   eNonSiblingCurCover,  
+  eNonSiblingSameRank,
   eErrorRelation,
 };
 
@@ -66,18 +68,21 @@ RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
 
 void modifyAccessHistory(RecordManageAction action,
                          std::vector<Record>* records,
-                         std::vector<Record>::iterator& cit);
+                         std::vector<Record>::iterator& cit,
+			 const Record& curRecord);
 
-NodeRelation calcNodeRelation(Label* hist, Label* cur, int index, bool prefix);
-NodeRelation calcRelationSameRank(Label* hist, Label* cur, int index);
-NodeRelation dispatchRelationCalc(CheckCase checkCase, 
-		                  const Record& histRec, 
-				  const Record& curRec,  
+NodeRelation calcNodeRelation(const Record& histRec, const Record& curRec, 
+		                  bool isHistBeforeCurrent, int diffIndex);
+NodeRelation calcRelationSameTask(const Record& histRec, const Record& curRec, 
 		                  int diffIndex);
+NodeRelation calcRelationSiblingTasks(const Record& histRec, 
+		                    const Record& curRec, int diffIndex);
 
 std::pair<AccessHistoryState, RecordManageAction> 
 stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
               const Record& histRecord, const Record& curRecord);
+bool isParentChildRelation(int diffIndex, int histLabelLength, 
+		           int curLabelLength);
 
-
+inline bool isLeafNode(int diffIndex, int labelLength);
 }
