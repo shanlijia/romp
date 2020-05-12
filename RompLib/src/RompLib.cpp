@@ -27,9 +27,9 @@ using LockSetPtr = std::shared_ptr<LockSet>;
 
 ShadowMemory<AccessHistory> shadowMemory;
 extern void* sdeCounters[NUM_SDE_COUNTER];
-extern std::atomic_int gNumCheckAccessCall;
-extern std::atomic_int gNumModAccessHistory;
-extern std::atomic_int gNumAccessHistoryOverflow;
+extern std::atomic_long gNumCheckAccessCall;
+extern std::atomic_long gNumModAccessHistory;
+extern std::atomic_long gNumAccessHistoryOverflow;
 
 /*
  * Driver function to do data race checking and access history management.

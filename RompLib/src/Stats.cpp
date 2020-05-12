@@ -10,9 +10,9 @@
 namespace romp {
 
 void* sdeCounters[NUM_SDE_COUNTER];
-std::atomic_int gNumCheckAccessCall;
-std::atomic_int gNumModAccessHistory;
-std::atomic_int gNumAccessHistoryOverflow;
+std::atomic_long gNumCheckAccessCall;
+std::atomic_long gNumModAccessHistory;
+std::atomic_long gNumAccessHistoryOverflow;
 
 static const char * eventNames[NUM_SDE_COUNTER] = {
   "REC_NUM_CNT",
