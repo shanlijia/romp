@@ -26,7 +26,10 @@ using LabelPtr = std::shared_ptr<Label>;
 using LockSetPtr = std::shared_ptr<LockSet>;
 
 ShadowMemory<AccessHistory> shadowMemory;
-extern void* sdeCounters[1];
+extern void* sdeCounters[NUM_SDE_COUNTER];
+extern std::atomic_long gNumCheckAccessCall;
+extern std::atomic_long gNumModAccessHistory;
+extern std::atomic_long gNumAccessHistoryOverflow;
 
 /*
  * Driver function to do data race checking and access history management.
@@ -34,6 +37,7 @@ extern void* sdeCounters[1];
 void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel, 
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
   McsNode node;
+  gNumCheckAccessCall++;
   LockGuard guard(&(accessHistory->getLock()), &node);
   auto dataSharingType = checkInfo.dataSharingType;
   if (dataSharingType == eThreadPrivateBelowExit || 
@@ -42,7 +46,8 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
   }
   auto records = accessHistory->getRecords();
   if (records->size() > REC_NUM_THRESHOLD) {
-    papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW], 1); 
+    papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW], 1);     
+    gNumAccessHistoryOverflow++;
   }
   if (records->size() > REC_NUM_THRESHOLD_2) {
     papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW_2], 1); 
@@ -56,6 +61,8 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      * to this memory location does not go through data race checking.
      */
     if (!records->empty()) {
+      papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
+      gNumModAccessHistory++;
       records->clear();
     }
     return;
@@ -66,6 +73,8 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      * reset the memory state flag and clear the access records.
      */
      accessHistory->clearAll();
+     papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
+     gNumModAccessHistory++;
      return;
   }
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
@@ -79,6 +88,8 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     } else {
       accessHistory->setState(eSingleRead); 
     }
+    papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
+    gNumModAccessHistory++;
   } else {
     // check previous access records with current access
     auto isHistBeforeCurrent = false;
@@ -109,6 +120,10 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
 		                       histRecord, curRecord, 
                                        isHistBeforeCurrent, diffIndex);
       modifyAccessHistory(action, records, it, curRecord);
+      if (action != eNoAction) {
+        papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
+        gNumModAccessHistory++;
+      }
     }
   }
 }
