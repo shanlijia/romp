@@ -89,6 +89,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     std::vector<Record>::const_iterator cit;
     auto skipAddCur = false;
     int diffIndex;
+    bool modFlag = false;
     while (it != records->end()) {
       cit = it; 
       auto histRecord = *cit;
@@ -115,14 +116,16 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
       }
       if (decision != eNoOp) {
         papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
-        gNumModAccessHistory++;
+	modFlag = true;
       }
       modifyAccessHistory(decision, records, it);
+    }
+    if (modFlag) {
+      gNumModAccessHistory++;
     }
     if (!skipAddCur) {
       records->push_back(curRecord); 
       papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
-      gNumModAccessHistory++;
     }
   }
 }
