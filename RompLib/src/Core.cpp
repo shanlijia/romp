@@ -1533,6 +1533,7 @@ void modifyAccessHistory(RecordManageAction action,
     RAW_LOG(INFO, "action is eAddCur");
     it = records->insert(it, curRecord);   
     it++;
+    it++;
   } else if (action == eDelAllAddCur) {
     RAW_LOG(INFO, "action is eDelAllAddCur");
     records->clear();
@@ -1540,6 +1541,7 @@ void modifyAccessHistory(RecordManageAction action,
     it = records->begin();
   } else if (action == eDelOtherAddCur) {
     RAW_LOG(INFO, "action is eDelOtherAddCur");
+    // keep the history record, remove other records, add current record
     auto histRecord = *it;
     records->clear();
     records->push_back(histRecord);
