@@ -76,7 +76,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      gNumModAccessHistory++;
      return;
   }
-  if (isDupMemAccess(checkInfo, curLabel)) {
+  if (isDupMemAccess(checkInfo)) {
     gNumDupMemAccess++;
     return;
   }
