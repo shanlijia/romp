@@ -82,7 +82,8 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
       auto histRecord = *cit;
       auto histLabel = histRecord.getLabel();
       isHistBeforeCurrent = happensBefore(histLabel, curLabel.get(), diffIndex);
-      if (analyzeRaceCondition(histRecord, curRecord, isHistBeforeCurrent)) {
+      if (analyzeRaceCondition(histRecord, curRecord, isHistBeforeCurrent, 
+			      diffIndex)) {
         gDataRaceFound = true;
         gNumDataRace++;
         if (gReportLineInfo) {

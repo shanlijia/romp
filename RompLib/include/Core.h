@@ -51,7 +51,7 @@ bool analyzeOrderedDescendents(Label* histLabel, int index, uint64_t histPhase);
 bool analyzeSyncChain(Label* label, int index);
 bool analyzeMutualExclusion(const Record& histRecord, const Record& curRecord);
 bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord, 
-                          bool isHistBeforeCur);
+                          bool isHistBeforeCur, int diffIndex);
 
 bool analyzeTaskGroupSync(Label* histLabel, Label* curLabel, int index);
 

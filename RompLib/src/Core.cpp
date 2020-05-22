@@ -26,7 +26,10 @@ namespace romp {
  * accesses. Return true if there is race condition
  */
 bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord, 
-                          bool isHistBeforeCur) {
+                          bool isHistBeforeCur, int diffIndex) {
+  if (diffIndex == eRightIsPrefix) {
+    return false;
+  }
   if (!histRecord.isWrite() && !curRecord.isWrite()) {
     // two read accesses do not form data race
     return false;
@@ -109,8 +112,7 @@ bool happensBefore(Label* histLabel, Label* curLabel, int& diffIndex) {
       case static_cast<int>(eLeftIsPrefix):
         return true;
       case static_cast<int>(eRightIsPrefix):
-        RAW_LOG(FATAL, "cur Label: %s -> hist label: %s", 
-                curLabel->toString().c_str(), histLabel->toString().c_str());
+	// current record -> hist record
         return false;
       default:
         RAW_LOG(FATAL, "unknown label compare result");
@@ -137,9 +139,10 @@ bool happensBefore(Label* histLabel, Label* curLabel, int& diffIndex) {
          * T(histLabel, diffIndex) and T(curLabel, diffIndex) are both the root
          * task, T(curLabel) should have encountered a barrier counstruct
          */
-        RAW_CHECK(histOffset < curOffset, "not expecting hist offset >=\
-                cur offset");
-        return true;
+        if (diffIndex == 0) {
+          return true;
+	}
+        return analyzeSameTask(histLabel, curLabel, diffIndex);
       case eWorkShare:
         if (static_cast<WorkShareSegment*>(histSegment)->isSingleExecutor() && 
             static_cast<WorkShareSegment*>(curSegment)->isSingleExecutor()) { 
@@ -449,6 +452,10 @@ bool analyzeSameTask(Label* histLabel, Label* curLabel, int diffIndex) {
     auto curNextSeg = curLabel->getKthSegment(diffIndex + 1);
     auto histNextType = histNextSeg->getType();
     auto curNextType = curNextSeg->getType();
+    if (histNextType == eImplicit && curNextType == eImplicit) {
+      RAW_LOG(INFO, "analyze same task exception: hist: %s cur: %s diffIndex: %d\n", histLabel->toString().c_str(), 
+		     curLabel->toString().c_str(), diffIndex); 
+    }
     RAW_CHECK(!(histNextType == eImplicit && curNextType == eImplicit),
             "not expecting next level tasks are sibling implicit tasks");
     // invoke different checking depending on next segment's type 
@@ -1512,6 +1519,9 @@ RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
                                       int diffIndex,
 				      int checkCallSeq,
 				      int recSize) {
+  if (diffIndex == eRightIsPrefix) {
+    return eNoAction; 
+  }
   NodeRelation relation = eErrorRelation;
   auto histLabel = histRecord.getLabel();
   auto curLabel = curRecord.getLabel();
