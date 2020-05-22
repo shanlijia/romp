@@ -1,5 +1,6 @@
 #pragma once 
 #include "AccessHistory.h"
+#include "CoreUtil.h"
 #include "LockSet.h"
 #include "TaskData.h"
 
@@ -87,4 +88,6 @@ bool isParentChildRelation(int diffIndex, int histLabelLength,
 		           int curLabelLength);
 
 inline bool isLeafNode(int diffIndex, int labelLength);
+bool isDupMemAccess(const CheckInfo& checkInfo);
+
 }

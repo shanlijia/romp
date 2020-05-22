@@ -60,6 +60,9 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      accessHistory->clearAll();
      return;
   }
+  if (isDupMemAccess(checkInfo)) {
+    return;
+  }
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
 
