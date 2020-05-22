@@ -120,7 +120,7 @@ void qs(int *v, int first, int last) {
 
 #pragma omp parallel 
 {
-#pragma omp for nowait
+#pragma omp for nowait schedule(dynamic)
      for(i = 0; i <= 1; i++) {
        qs(v, start[i], end[i]);
      }
