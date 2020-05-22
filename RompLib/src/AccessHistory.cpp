@@ -53,6 +53,9 @@ AccessHistoryState AccessHistory::getState() const {
   return static_cast<AccessHistoryState>(_state >> ACCESS_HISTORY_SHIFT);
 }
 
+uint64_t AccessHistory::getRawState() const {
+  return _state;
+}
 /*
  * Set access history state which is stored in the upper 32 bits of _state.
  */

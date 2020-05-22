@@ -23,7 +23,7 @@ using LabelPtr = std::shared_ptr<Label>;
 using LockSetPtr = std::shared_ptr<LockSet>;
 
 ShadowMemory<AccessHistory> shadowMemory;
-
+std::atomic_int gCheckAccessSeq = 0;
 /*
  * Driver function to do data race checking and access history management.
  */
@@ -31,6 +31,8 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
   McsNode node;
   LockGuard guard(&(accessHistory->getLock()), &node);
+  gCheckAccessSeq++;
+  auto checkSeq = gCheckAccessSeq.load();  
   auto dataSharingType = checkInfo.dataSharingType;
   if (dataSharingType == eThreadPrivateBelowExit || 
           dataSharingType == eStaticThreadPrivate) {
@@ -94,10 +96,13 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
                          checkInfo.byteAddress);
         }
         accessHistory->setFlag(eDataRaceFound);  
+	break;
       }
       auto action = manageAccessRecord(accessHistory,
 		                       histRecord, curRecord, 
-                                       isHistBeforeCurrent, diffIndex);
+                                       isHistBeforeCurrent, diffIndex,
+				       checkSeq,
+				       records->size());
       modifyAccessHistory(action, records, it, curRecord);
     }
   }

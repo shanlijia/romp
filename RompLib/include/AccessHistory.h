@@ -27,7 +27,7 @@ enum AccessHistoryState {
   eSiblingRW = 0x4,
   eSiblingWW = 0x5,
   eNonSiblingRR = 0x6,
-  eNonSiblingRW = 0x8,
+  eNonSiblingRW = 0x7,
   eNonSiblingWW = 0x8,
   eMultiRec = 0x9, // current not reachable
   eUndefinedState = 0xa,
@@ -37,13 +37,13 @@ enum AccessHistoryState {
 };
 
 enum RecordManageAction {
-  eNoAction,
-  eDelHistAddCur,
-  eAddCur,
-  eDelHist,
-  eErrorAction,
-  eDelAllAddCur,
-  eDelOtherAddCur,
+  eNoAction = 0x0,
+  eDelHistAddCur = 0x1,
+  eAddCur = 0x2,
+  eDelHist = 0x3,
+  eErrorAction = 0x4,
+  eDelAllAddCur = 0x5,
+  eDelOtherAddCur = 0x6,
 };
 
 class AccessHistory {
@@ -59,6 +59,7 @@ public:
   bool memIsRecycled() const;
   AccessHistoryState getState() const;
   void setState(AccessHistoryState state);    
+  uint64_t getRawState() const;
 private:
   void _initRecords();
 private:

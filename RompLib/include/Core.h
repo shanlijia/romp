@@ -25,14 +25,14 @@ enum CheckCase {
 }; 
 
 enum NodeRelation {
-  eAncestorChild,
-  eParentChild,
-  eSameNode,
-  eSibling,
-  eNonSiblingHistCover,
-  eNonSiblingCurCover,  
-  eNonSiblingSameRank,
-  eErrorRelation,
+  eAncestorChild = 0x1,
+  eParentChild = 0x2,
+  eSameNode = 0x3,
+  eSibling = 0x4,
+  eNonSiblingHistCover = 0x5,
+  eNonSiblingCurCover = 0x6,
+  eNonSiblingSameRank = 0x7,
+  eErrorRelation = 0x8,
 };
 
 bool happensBefore(Label* histLabel, Label* curLabel, int& diffIndex);
@@ -64,7 +64,9 @@ RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
 		                      const Record& histRecord,
                                       const Record& curRecord, 
                                       bool isHistBeforeCur,
-                                      int diffIndex);
+                                      int diffIndex,
+				      int checkCallSeq,
+				      int recSize);
 
 void modifyAccessHistory(RecordManageAction action,
                          std::vector<Record>* records,

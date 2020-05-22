@@ -1473,6 +1473,8 @@ stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
       return stateTransferNonSiblingRR(relation, histRec, curRec);   
     case eNonSiblingWW:
       return stateTransferNonSiblingWW(relation, histRec, curRec);
+    case eNonSiblingRW:
+      return stateTransferNonSiblingRW(relation, histRec, curRec);
     case eParentChildWR:
       return stateTransferParentChildWR(relation, histRec, curRec);
     case eAncestorChildWR:
@@ -1481,7 +1483,6 @@ stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
       return stateTransferWRR(relation, histRec, curRec); 
     case eMultiRec:
       return stateTransferMultiRec(relation, histRec, curRec);
-
     default:
       RAW_LOG(FATAL, "not expecting to be default case: %d", oldState);
   }	  
@@ -1508,14 +1509,28 @@ RecordManageAction manageAccessRecord(AccessHistory* accessHistory,
 		                      const Record& histRecord, 
                                       const Record& curRecord,
                                       bool isHistBeforeCurrent,
-                                      int diffIndex) {
+                                      int diffIndex,
+				      int checkCallSeq,
+				      int recSize) {
   NodeRelation relation = eErrorRelation;
   auto histLabel = histRecord.getLabel();
   auto curLabel = curRecord.getLabel();
   relation = calcNodeRelation(histRecord, curRecord, isHistBeforeCurrent,
 	                          diffIndex);	  
+  auto oldState = accessHistory->getState();
   auto [nextState, action] = stateTransfer(accessHistory->getState(),relation, 
 		                           histRecord, curRecord);
+  RAW_LOG(INFO,
+          "AH: %lx old state: %lx, new state: %lx, action: %lx hist:%s cur:%s relation: %d seq: %d rec size: %d, hw: %d cw: %d, state: %lx",
+          accessHistory, oldState, nextState, action, 
+	  histLabel->toString().c_str(),
+          curLabel->toString().c_str(),
+	  relation,
+	  checkCallSeq, 
+	  recSize,
+	  histRecord.isWrite(),
+	  curRecord.isWrite(),
+	  accessHistory->getRawState()); 	    
   accessHistory->setState(nextState);
   return action;
 } 
