@@ -13,6 +13,7 @@ void* sdeCounters[NUM_SDE_COUNTER];
 std::atomic_long gNumCheckAccessCall;
 std::atomic_long gNumModAccessHistory;
 std::atomic_long gNumAccessHistoryOverflow;
+std::atomic_long gNumDupMemAccess;
 
 static const char * eventNames[NUM_SDE_COUNTER] = {
   "REC_NUM_CNT",
@@ -36,6 +37,7 @@ void finiStatsLog() {
   LOG(INFO) << "access history modification: " << gNumModAccessHistory.load();
   LOG(INFO) << "access history threshold: " << REC_NUM_THRESHOLD;
   LOG(INFO) << "access history overflow: " << gNumAccessHistoryOverflow.load();
+  LOG(INFO) << "num dup memory access: " << gNumDupMemAccess.load();
 }	
 
 }

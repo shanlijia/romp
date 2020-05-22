@@ -30,6 +30,7 @@ extern void* sdeCounters[NUM_SDE_COUNTER];
 extern std::atomic_long gNumCheckAccessCall;
 extern std::atomic_long gNumModAccessHistory;
 extern std::atomic_long gNumAccessHistoryOverflow;
+extern std::atomic_long gNumDupMemAccess;
 
 /*
  * Driver function to do data race checking and access history management.
@@ -76,7 +77,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      return;
   }
   if (isDupMemAccess(checkInfo, curLabel)) {
-    RAW_LOG(INFO, "is dup mem access");
+    gNumDupMemAccess++;
     return;
   }
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
