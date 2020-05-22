@@ -75,6 +75,10 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      gNumModAccessHistory++;
      return;
   }
+  if (isDupMemAccess(checkInfo, curLabel)) {
+    RAW_LOG(INFO, "is dup mem access");
+    return;
+  }
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
   if (records->empty()) {
