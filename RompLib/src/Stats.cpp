@@ -44,10 +44,10 @@ void finiStatsLog() {
   LOG(INFO) << "num dup memory access: " << gNumDupMemAccess.load();
   for (const auto& data : gAccessHistoryMap) {
     auto history = static_cast<AccessHistory*>(data.first);
-    LOG(INFO) << "contention on history# " << history
-	      << " contention time# " << history->numContention.load()
-	      << " num access# " << history->numAccess.load() 
-	      << " num mod# " << history->numMod.load();
+    LOG(INFO) << "contention on history#" << history << "#"
+	      << "contention time#" << history->numContention.load() << "#"
+	      << "num access#" << history->numAccess.load() << "#"
+	      << "num mod#" << history->numMod.load();
   }
 }	
 
