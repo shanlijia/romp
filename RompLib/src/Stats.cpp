@@ -4,8 +4,11 @@
 #include <glog/logging.h>
 #include <glog/raw_logging.h>
 #include <stdlib.h>
+#include <unordered_map>
 
 #include <papi_sde_interface.h>
+
+#include "AccessHistory.h"
 
 namespace romp {
 
@@ -14,6 +17,7 @@ std::atomic_long gNumCheckAccessCall;
 std::atomic_long gNumModAccessHistory;
 std::atomic_long gNumAccessHistoryOverflow;
 std::atomic_long gNumDupMemAccess;
+std::unordered_map<void*, int> gAccessHistoryMap;
 
 static const char * eventNames[NUM_SDE_COUNTER] = {
   "REC_NUM_CNT",
@@ -38,6 +42,13 @@ void finiStatsLog() {
   LOG(INFO) << "access history threshold: " << REC_NUM_THRESHOLD;
   LOG(INFO) << "access history overflow: " << gNumAccessHistoryOverflow.load();
   LOG(INFO) << "num dup memory access: " << gNumDupMemAccess.load();
+  for (const auto& data : gAccessHistoryMap) {
+    auto history = static_cast<AccessHistory*>(data.first);
+    LOG(INFO) << "contention on history: " << history
+	      << " contention time: " << history->numContention.load()
+	      << " num access: " << history->numAccess.load() 
+	      << " num mod: " << history->numMod.load();
+  }
 }	
 
 }

@@ -7,6 +7,7 @@ namespace romp {
 #define EVENT_MOD_NUM_COUNT 1	
 
 #define REC_NUM_THRESHOLD 8
+#define CONTENTION_THRESHOLD 2
 
 void initPapiSde();
 void finiStatsLog();

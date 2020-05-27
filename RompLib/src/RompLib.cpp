@@ -31,6 +31,7 @@ extern std::atomic_long gNumCheckAccessCall;
 extern std::atomic_long gNumModAccessHistory;
 extern std::atomic_long gNumAccessHistoryOverflow;
 extern std::atomic_long gNumDupMemAccess;
+extern std::unordered_map<void*, int> gAccessHistoryMap;
 
 /*
  * Driver function to do data race checking and access history management.
@@ -39,7 +40,13 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
   McsNode node;
   gNumCheckAccessCall++;
-  LockGuard guard(&(accessHistory->getLock()), &node);
+  LockGuard guard(accessHistory, &node);
+  accessHistory->numAccess++;
+  if (accessHistory->numContention.load() >= CONTENTION_THRESHOLD) {
+   // the contention on this access history slot is reaching limit    
+   // record this access history
+    gAccessHistoryMap[(void*)accessHistory]++;
+  }  
   auto dataSharingType = checkInfo.dataSharingType;
   if (dataSharingType == eThreadPrivateBelowExit || 
           dataSharingType == eStaticThreadPrivate) {
@@ -61,6 +68,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     if (!records->empty()) {
       papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
       gNumModAccessHistory++;
+      accessHistory->numMod++;
       records->clear();
     }
     return;
@@ -74,6 +82,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      records->clear();
      papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
      gNumModAccessHistory++;
+     accessHistory->numMod++;
      return;
   }
   if (isDupMemAccess(checkInfo)) {
@@ -87,6 +96,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     records->push_back(curRecord);
     papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
     gNumModAccessHistory++;
+    accessHistory->numMod++;
   } else {
     // check previous access records with current access
     auto isHistBeforeCurrent = false;
@@ -128,10 +138,11 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     }
     if (modFlag) {
       gNumModAccessHistory++;
+      accessHistory->numMod++;
+      papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
     }
     if (!skipAddCur) {
       records->push_back(curRecord); 
-      papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
     }
   }
 }

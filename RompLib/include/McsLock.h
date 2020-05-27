@@ -69,7 +69,6 @@
 #include <atomic>
 #include <stdbool.h>
 
-
 //******************************************************************************
 // types
 //******************************************************************************
@@ -114,19 +113,4 @@ mcsTryLock(McsLock *l, McsNode *me);
 void
 mcsUnlock(McsLock *l, McsNode *me);
 
-/*
- * A custom implementation of lock guard that wraps mcs locking/unlocking
- */
-class LockGuard {
-public:
-  LockGuard(McsLock* lock, McsNode* node): _lock(lock), _node(node) {
-    mcsLock(_lock,  _node);
-  }
-  ~LockGuard() {
-    mcsUnlock(_lock, _node);   
-  }
-private:
-  McsLock* _lock;
-  McsNode* _node;
-};
 #endif
