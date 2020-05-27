@@ -32,7 +32,7 @@ extern std::atomic_long gNumModAccessHistory;
 extern std::atomic_long gNumAccessHistoryOverflow;
 extern std::atomic_long gNumDupMemAccess;
 extern std::unordered_map<void*, int> gAccessHistoryMap;
-
+McsLock gMapLock;
 /*
  * Driver function to do data race checking and access history management.
  */
@@ -43,9 +43,12 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
   LockGuard guard(accessHistory, &node);
   accessHistory->numAccess++;
   if (accessHistory->numContention.load() >= CONTENTION_THRESHOLD) {
-   // the contention on this access history slot is reaching limit    
-   // record this access history
+    // the contention on this access history slot is reaching limit    
+    // record this access history
+    McsNode mapNode;
+    mcsLock(&gMapLock, &mapNode);
     gAccessHistoryMap[(void*)accessHistory]++;
+    mcsUnlock(&gMapLock, &mapNode);
   }  
   auto dataSharingType = checkInfo.dataSharingType;
   if (dataSharingType == eThreadPrivateBelowExit || 
