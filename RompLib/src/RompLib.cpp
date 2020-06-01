@@ -28,7 +28,9 @@ using LockSetPtr = std::shared_ptr<LockSet>;
 ShadowMemory<AccessHistory> shadowMemory;
 extern void* sdeCounters[NUM_SDE_COUNTER];
 extern std::atomic_long gNumCheckAccessCall;
+extern std::atomic_long gNumContendedAccess;
 extern std::atomic_long gNumModAccessHistory;
+extern std::atomic_long gNumContendedMod;
 extern std::atomic_long gNumAccessHistoryOverflow;
 extern std::atomic_long gNumDupMemAccess;
 extern std::unordered_map<void*, int> gAccessHistoryMap;
@@ -40,14 +42,15 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
   McsNode node;
   gNumCheckAccessCall++;
-  LockGuard guard(accessHistory, &node);
-  accessHistory->numAccess++;
-  if (accessHistory->numContention.load() >= CONTENTION_THRESHOLD) {
-    // the contention on this access history slot is reaching limit    
-    // record this access history
+  bool isContended = false;
+  LockGuard guard(accessHistory, &node, isContended);
+  accessHistory->numAccess++; 
+  if (isContended) {
+    gNumContendedAccess++;   
+    accessHistory->numContendedAccess++;
     McsNode mapNode;
     mcsLock(&gMapLock, &mapNode);
-    gAccessHistoryMap[(void*)accessHistory]++;
+    gAccessHistoryMap[(void*)accessHistory]++;  
     mcsUnlock(&gMapLock, &mapNode);
   }  
   auto dataSharingType = checkInfo.dataSharingType;
@@ -88,10 +91,12 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      accessHistory->numMod++;
      return;
   }
+  /*
   if (isDupMemAccess(checkInfo)) {
     gNumDupMemAccess++;
     return;
   }
+  */
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
   if (records->empty()) {
@@ -100,6 +105,10 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
     gNumModAccessHistory++;
     accessHistory->numMod++;
+    if (isContended) {
+      gNumContendedMod++;
+      accessHistory->numContendedMod++;
+    }
   } else {
     // check previous access records with current access
     auto isHistBeforeCurrent = false;
@@ -142,6 +151,10 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     if (modFlag) {
       gNumModAccessHistory++;
       accessHistory->numMod++;
+      if (isContended) {
+        gNumContendedMod++;
+        accessHistory->numContendedMod++;
+      }
       papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
     }
     if (!skipAddCur) {

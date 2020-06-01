@@ -13,8 +13,12 @@
 namespace romp {
 
 void* sdeCounters[NUM_SDE_COUNTER];
-std::atomic_long gNumCheckAccessCall;
-std::atomic_long gNumModAccessHistory;
+std::atomic_long gNumCheckAccessCall;//total number of calls to access checking
+std::atomic_long gNumContendedAccess;//total number of times check access is contended
+
+std::atomic_long gNumModAccessHistory;//total number of times check access requires mod to access history
+std::atomic_long gNumContendedMod;//total number of times modifcation is done when check access is contended
+
 std::atomic_long gNumAccessHistoryOverflow;
 std::atomic_long gNumDupMemAccess;
 std::unordered_map<void*, int> gAccessHistoryMap;
@@ -37,17 +41,20 @@ void initPapiSde() {
 
 __attribute__((destructor))
 void finiStatsLog() {
-  LOG(INFO) << "num check access called: " << gNumCheckAccessCall.load();
-  LOG(INFO) << "access history modification: " << gNumModAccessHistory.load();
-  LOG(INFO) << "access history threshold: " << REC_NUM_THRESHOLD;
-  LOG(INFO) << "access history overflow: " << gNumAccessHistoryOverflow.load();
-  LOG(INFO) << "num dup memory access: " << gNumDupMemAccess.load();
+  LOG(INFO) << "gNumCheckAccessCall: " << gNumCheckAccessCall.load();
+  LOG(INFO) << "gNumContendedAccess: " << gNumContendedAccess.load();
+  LOG(INFO) << "gNumModAccessHistory: " << gNumModAccessHistory.load();
+  LOG(INFO) << "gNumContendedMod: " << gNumContendedMod.load();
+  LOG(INFO) << "gNumAccessHistoryOverflow: " << gNumAccessHistoryOverflow.load();
+  LOG(INFO) << "REC_NUM_THRESHOLD: " << REC_NUM_THRESHOLD;
+  //LOG(INFO) << "num dup memory access: " << gNumDupMemAccess.load();
   for (const auto& data : gAccessHistoryMap) {
     auto history = static_cast<AccessHistory*>(data.first);
-    LOG(INFO) << "contention on history#" << history << "#"
-	      << "contention time#" << history->numContention.load() << "#"
-	      << "num access#" << history->numAccess.load() << "#"
-	      << "num mod#" << history->numMod.load();
+    LOG(INFO) << "history#" << history << "#"
+	      << "numContendedAccess#" << history->numContendedAccess.load() << "#"
+	      << "numAccess#" << history->numAccess.load() << "#"
+	      << "numContendedMod#" << history->numContendedMod.load() << "#"
+	      << "numMod#" << history->numMod.load();
   }
 }	
 

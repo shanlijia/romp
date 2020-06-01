@@ -26,9 +26,10 @@ public:
   bool dataRaceFound() const;
   bool memIsRecycled() const;
   uint64_t getState() const;
-  std::atomic_uint64_t numContention;
   std::atomic_uint64_t numAccess;
-  std::atomic_uint64_t numMod;
+  std::atomic_uint64_t numContendedAccess;
+  std::atomic_uint64_t numMod;     
+  std::atomic_uint64_t numContendedMod;
 private:
   void _initRecords();
 private:
@@ -44,11 +45,12 @@ public:
     mcsLock(_lock, _node);
   }
 
-  LockGuard(AccessHistory* history, McsNode* node) {
+  LockGuard(AccessHistory* history, McsNode* node, bool& isContended) {
     _lock = &(history->getLock());
     _node = node;
+    isContended = false;    
     if (!mcsTryLock(_lock, _node)) {
-      history->numContention++; // if we experienced a contention, record it
+      isContended = true;
       mcsLock(_lock, _node);
     }
   }
