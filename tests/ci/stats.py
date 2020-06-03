@@ -30,7 +30,7 @@ with open(sys.argv[1]) as f:
     elif 'gNumContendedMod#' in line:
       contendedWrite = float(line.split('#')[1]) 
     elif 'gNumAccessHistoryOverflow#' in line:
-      recordOverflow = float(line.split('#')[1])
+      recordOverflow = line.split('#')[1]
     elif 'ObjectContention' in line:
       num_contention_object += 1;
       line = line.strip('\n')
@@ -83,9 +83,9 @@ uncontendWrite = totalWrite - contendedWrite
 uncontendRead = uncontendAccess - uncontendWrite
 contendedRead = contendedAccess - contendedWrite
 
-print 'contended access ratio: ', (contendedRead + contendedWrite)/totalAccess
-print 'write contention ratio: ', contendedWrite / (contendedWrite + contendedRead)
-print 'read contention ratio: ', contendedRead / (contendedRead + contendedWrite)
+contendedAccessRatio = (contendedRead + contendedWrite)/totalAccess
+writeContentionRatio = contendedWrite / (contendedWrite + contendedRead)
+readContentionRatio = contendedRead / (contendedRead + contendedWrite)
 
 
 myColors=['green', 'blue', 'orange', 'red']
@@ -102,22 +102,32 @@ objDf = pd.DataFrame({
                    'obj contended write': listContendedWrite,
                    })
 
+summaryDf = pd.DataFrame({
+                    'contend access ratio': [contendedAccessRatio],
+                    'write contend ratio' : [writeContentionRatio],
+                    'read contend ratio' : [readContentionRatio],
+                    })
+
 plt.figure(1)
-plt.subplot(1,2,1)
-plt.suptitle(sys.argv[1])
+plt.subplot(2,2,1)
+plt.suptitle(sys.argv[1] + ' #overflow access:' + recordOverflow)
 df[['uncontended read', 
     'uncontended write', 
     'contended read', 
     'contended write']].plot(ax=plt.gca(),kind='bar', stacked=True, color=myColors)
 plt.ylabel('#Accesses')
 plt.title('Total Accesses')
-plt.subplot(1,2,2)
+plt.subplot(2,2,2)
 objDf[['obj uncontended read', 
     'obj uncontended write', 
     'obj contended read', 
     'obj contended write']].plot(ax=plt.gca(),kind='bar', stacked=True, color=myColors)
 plt.ylabel('#Accesses')
 plt.title('Contended Access History Objects')
+
+plt.subplot(2,2,3)
+summaryDf.plot(ax=plt.gca(), kind='bar', stacked=False)
+
 #plt.show()
 
 pdf = PdfPages('test.pdf')
