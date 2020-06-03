@@ -12,9 +12,7 @@ for app in $APPS
 do
   echo $app	
   $TIMEOUTCMD $TIMEOUTMIN"m" "$app" 5000 &> ${app}_log
-  python stats.py ${app}_log &> ${app}_log_2
-  echo $avgModRatio
-  echo "$app, $numCheckAccess, $numAHMod, $numAHOverflow, $threshold, $dupMemAccess, $numContentionObj, $avgContRatio, $avgModRatio" >> "$STATS_FILE"
+  python stats.py ${app}_log 
 
 done
 
