@@ -23,7 +23,6 @@ def processLog(logName, pdfHandle):
   recordOverflow=0
   with open(logName, 'r') as f:
     lines = f.readlines();
-    print(lines)
     num_contention_object = 0;
     for line in lines:
       line = line.strip('\n')
@@ -81,45 +80,32 @@ def processLog(logName, pdfHandle):
   uncontendWrite = totalWrite - contendedWrite 
   uncontendRead = uncontendAccess - uncontendWrite
   contendedRead = contendedAccess - contendedWrite
-  contendedAccessRatio = (contendedRead + contendedWrite)/totalAccess
-  writeContentionRatio = contendedWrite / (contendedWrite + contendedRead)
-  readContentionRatio = contendedRead / (contendedRead + contendedWrite)
+  try:
+    contendedAccessRatio = (contendedRead + contendedWrite)/totalAccess
+    writeContentionRatio = contendedWrite / (contendedWrite + contendedRead)
+    readContentionRatio = contendedRead / (contendedRead + contendedWrite)
+  except:
+    print("exception encountered")
+    return
   myColors=['green', 'blue', 'orange', 'red']
-  df = pd.DataFrame({
-                   'uncontended read': [uncontendRead], 
-                   'uncontended write': [uncontendWrite],
-                   'contended read': [contendedRead],
-                   'contended write': [contendedWrite],
-                   })
-  objDf = pd.DataFrame({
-                   'obj uncontended read': listUncontendRead, 
-                   'obj uncontended write': listUncontendWrite,
-                   'obj contended read': listContendedRead,
-                   'obj contended write': listContendedWrite,
-                   })
+  d = {'ucr':[uncontendRead], 'ucw':[uncontendWrite], 'cr':[contendedRead], 'cw':[contendedWrite]}
+  df = pd.DataFrame(data=d)
+  print(df.shape)
+  d = {'lucr':listUncontendRead, 'lucw':listUncontendWrite, 'lcr':listContendedRead,'lcw':listContendedWrite}
+  objdf = pd.DataFrame(data=d)
+  print(objdf.shape)
 
-  plt.figure(1)
-  plt.suptitle(os.path.basename(logName) + ' #overflow access:' + recordOverflow, fontsize=8)
-  plt.subplot(1,2,1)
-  df[['uncontended read', 
-    'uncontended write', 
-    'contended read', 
-    'contended write']].plot(ax=plt.gca(),kind='bar', stacked=True, color=myColors)
-  plt.gca().get_legend().remove();
-  plt.xticks([])
-  plt.ylabel('#Accesses')
-  title = '(cr+cw)/total:' + str(contendedAccessRatio) + '\ncr/(cr+cw):' +\
-             str(readContentionRatio) + '\ncw/(cr+cw):' + str(writeContentionRatio);
-  plt.title(title, fontsize=6)
-
-  plt.subplot(1,2,2)
-  objDf[['obj uncontended read', 
-    'obj uncontended write', 
-    'obj contended read', 
-    'obj contended write']].plot(ax=plt.gca(),kind='bar', stacked=True, color=myColors)
-  plt.gca().get_legend().remove();
-  plt.ylabel('#Accesses')
-  plt.title('Contended Access History Objects', fontsize=10)
+  fig = plt.figure()
+  fig.suptitle(os.path.basename(logName) + ' #overflow access:' + recordOverflow, fontsize=10)
+  stats = '(cr+cw)/total:' + str(contendedAccessRatio) + '\ncr/(cr+cw):' + str(readContentionRatio) + '\ncw/(cr+cw):' + str(writeContentionRatio);
+  ax1 = fig.add_subplot(121)
+  ax1.set_title(stats, fontsize=6)
+  ax1.set_ylabel('#Accesses')
+  ax2 = fig.add_subplot(122)
+  ax2.set_ylabel('#Accesses')
+  ax2.set_title('contended access history objects', fontsize=8)
+  df.plot.bar(stacked=True,color=myColors,ax=ax1,xticks=[])
+  objdf.plot.bar(stacked=True,color=myColors,ax=ax2,legend=False)
   plt.savefig(pdfHandle, format='pdf')
 
 def getLogName(app):
