@@ -41,16 +41,16 @@ void initPapiSde() {
 
 __attribute__((destructor))
 void finiStatsLog() {
-  LOG(INFO) << "gNumCheckAccessCall: " << gNumCheckAccessCall.load();
-  LOG(INFO) << "gNumContendedAccess: " << gNumContendedAccess.load();
-  LOG(INFO) << "gNumModAccessHistory: " << gNumModAccessHistory.load();
-  LOG(INFO) << "gNumContendedMod: " << gNumContendedMod.load();
-  LOG(INFO) << "gNumAccessHistoryOverflow: " << gNumAccessHistoryOverflow.load();
-  LOG(INFO) << "REC_NUM_THRESHOLD: " << REC_NUM_THRESHOLD;
+  LOG(INFO) << "gNumCheckAccessCall# " << gNumCheckAccessCall.load();
+  LOG(INFO) << "gNumContendedAccess# " << gNumContendedAccess.load();
+  LOG(INFO) << "gNumModAccessHistory# " << gNumModAccessHistory.load();
+  LOG(INFO) << "gNumContendedMod# " << gNumContendedMod.load();
+  LOG(INFO) << "gNumAccessHistoryOverflow# " << gNumAccessHistoryOverflow.load();
+  LOG(INFO) << "REC_NUM_THRESHOLD# " << REC_NUM_THRESHOLD;
   //LOG(INFO) << "num dup memory access: " << gNumDupMemAccess.load();
   for (const auto& data : gAccessHistoryMap) {
     auto history = static_cast<AccessHistory*>(data.first);
-    LOG(INFO) << "history#" << history << "#"
+    LOG(INFO) << "ObjectContention-history#" << history << "#"
 	      << "numContendedAccess#" << history->numContendedAccess.load() << "#"
 	      << "numAccess#" << history->numAccess.load() << "#"
 	      << "numContendedMod#" << history->numContendedMod.load() << "#"
