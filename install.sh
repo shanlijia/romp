@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # This script is only used for cmake configuration stage. One needs to load all # required modules before running this script.
 mkdir install
 mkdir build && cd build
