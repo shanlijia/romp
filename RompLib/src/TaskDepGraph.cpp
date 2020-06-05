@@ -41,6 +41,7 @@ void TaskDepGraph::addDeps(const ompt_dependence_t& deps,  void* taskPtr) {
     auto taskData = static_cast<TaskData*>(taskPtr);
     taskData->isMutexTask = true;
   }
+  static_cast<TaskData*>(taskPtr)->isDependentTask = true; 
   // look up tasks that share the same dependence variable
   if (_deps.find(variable) == _deps.end()) {
     // no variable is found, it could be the first encountered task

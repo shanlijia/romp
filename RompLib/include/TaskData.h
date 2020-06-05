@@ -21,6 +21,7 @@ typedef struct TaskData {
   int expLocalId; // if the task is explicit, store its local id in par region
   bool isMutexTask;
   bool isExplicitTask; 
+  bool isDependentTask;
   TaskData() {
     label = nullptr;
     lockSet = nullptr;
@@ -29,6 +30,7 @@ typedef struct TaskData {
     expLocalId = 0;
     isMutexTask = false;
     isExplicitTask = false;
+    isDependentTask = false;
   }
 } TaskData;
 

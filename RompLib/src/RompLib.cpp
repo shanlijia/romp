@@ -230,10 +230,6 @@ void checkAccess(void* address,
   auto curTaskData = static_cast<TaskData*>(allTaskInfo.taskData->ptr);
   curTaskData->exitFrame = allTaskInfo.taskFrame->exit_frame.ptr;
   auto& curLabel = curTaskData->label;
-  if (curLabel == nullptr) {
-    RAW_LOG(WARNING, "current label is nullptr");
-    return;
-  } 
   auto& curLockSet = curTaskData->lockSet;
   CheckInfo checkInfo(allTaskInfo, bytesAccessed, instnAddr, 
           static_cast<void*>(curTaskData), taskType, isWrite, hwLock, 

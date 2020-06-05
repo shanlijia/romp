@@ -60,13 +60,15 @@ bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord,
       if (!queryParallelInfo(0, teamSize, parallelDataPtr)) {
         RAW_LOG(WARNING, "cannot get parallel region data");
       } else {
-        auto parallelData = static_cast<ParRegionData*>(parallelDataPtr); 
-        // have to lock the task dep graph before graph traversal
-	McsNode node;
-	LockGuard guard(&(parallelData->lock), &node);
-        if (parallelData->taskDepGraph.hasPath((void*)histTaskData, 
+	if (histTaskData->isDependentTask && curTaskData->isDependentTask) {
+          auto parallelData = static_cast<ParRegionData*>(parallelDataPtr); 
+          // have to lock the task dep graph before graph traversal
+	  McsNode node;
+	  LockGuard guard(&(parallelData->lock), &node);
+          if (parallelData->taskDepGraph.hasPath((void*)histTaskData, 
 				 (void*)curTaskData)) {
-          isHistBeforeCur = true;
+            isHistBeforeCur = true;
+	  }
 	}
       }
     }
