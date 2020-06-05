@@ -97,6 +97,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     return;
   }
   */
+  
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
   if (records->empty()) {
@@ -120,6 +121,9 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
     while (it != records->end()) {
       cit = it; 
       auto histRecord = *cit;
+      if (histRecord.getLabel() == nullptr) {
+        RAW_LOG(WARNING, "hist record label is null, size: %d", records->size());
+      }
       if (analyzeRaceCondition(histRecord, curRecord, isHistBeforeCurrent, 
                   diffIndex)) {
         gDataRaceFound = true;
@@ -227,7 +231,9 @@ void checkAccess(void* address,
   curTaskData->exitFrame = allTaskInfo.taskFrame->exit_frame.ptr;
   auto& curLabel = curTaskData->label;
   auto& curLockSet = curTaskData->lockSet;
-  
+  if (curLabel == nullptr) {
+    return;
+  } 
   CheckInfo checkInfo(allTaskInfo, bytesAccessed, instnAddr, 
           static_cast<void*>(curTaskData), taskType, isWrite, hwLock, 
           dataSharingType);

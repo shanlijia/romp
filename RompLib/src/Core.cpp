@@ -30,6 +30,8 @@ bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord,
         bool& isHistBeforeCur, int& diffIndex) {
   auto histLabel = histRecord.getLabel(); 
   auto curLabel = curRecord.getLabel(); 
+  RAW_CHECK(histLabel != nullptr && curLabel != nullptr, "not expecting\
+		  null label");
   if (analyzeMutualExclusion(histRecord, curRecord)) {
     return false;
   }  

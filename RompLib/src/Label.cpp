@@ -74,6 +74,12 @@ int Label::getLabelLength() const {
  * If the labels are the same, return -3 (eSame)
  */
 int compareLabels(Label* left, Label* right) {
+  if (!left) {
+    RAW_LOG(FATAL, "compare labels: left label is null");
+  } 
+  if (!right) {
+    RAW_LOG(FATAL, "compare labels: right label is null");
+  }	  
   auto& leftLabel = left->_label;
   auto& rightLabel = right->_label;  
   auto lenLeftLabel = leftLabel.size();
