@@ -40,14 +40,16 @@ McsLock gMapLock;
 /*
  * return true if atomic upgrade fails and needs to roll back
  */
-bool upgradeHelper(bool& writeLockHeld, PfqRWLock* lock, bool& wwContended) {
+bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld, 
+		  PfqRWLock* lock, bool& wwContended, 
+		  PfqRWLockNode& me) {
   if (writeLockHeld) {
     return false;
   }
   wwContended = false;
-  PfqRWLockNode me; 
   auto res = pfqUpgrade(lock, &me);
   writeLockHeld = true;
+  readLockHeld = false;
   if (res == eAtomicUpgraded) {
     return false;
   } else {
@@ -93,30 +95,45 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
   bool readWriteContend = false;
   bool writeWriteContend = false;   
   bool writeLockHeld = false;
+  bool readLockHeld = false;
   bool contendAccessRecorded = false;
   bool contendModRecorded = false;
   bool modRecorded = false;
   auto lockPtr = &(accessHistory->getLock());   
+  PfqRWLockNode me;
   if (pfqRWLockReadLock(lockPtr)) {
     readWriteContend = true;
   }
-  accessHisjory->numAccess++; 
+  readLockHeld = true;
+  accessHistory->numAccess++; 
   // now we acquired the read lock
+  int rollBackCnt = 0;
 rollback_label:
+  RAW_LOG(INFO, "check data race called %lx %d", accessHistory, rollBackCnt);
   if (readWriteContend || writeWriteContend) {
     recordContendedAccess(contendAccessRecorded, accessHistory);
   }
   auto dataSharingType = checkInfo.dataSharingType;
   if (dataSharingType == eThreadPrivateBelowExit || 
           dataSharingType == eStaticThreadPrivate) {
+    RAW_LOG(INFO, "check data race called %lx 3", accessHistory);
+    if (writeLockHeld) {
+      RAW_LOG(INFO, "check data race called %lx 4", accessHistory);
+      pfqRWLockWriteUnlock(lockPtr, &me);
+    } else if (readLockHeld) {
+      RAW_LOG(INFO, "check data race called %lx 5", accessHistory);
+      pfqRWLockReadUnlock(lockPtr);
+    }
     return;
   }
+  RAW_LOG(INFO, "check data race called %lx 1", accessHistory);
   auto records = accessHistory->getRecords();
   if (records->size() > REC_NUM_THRESHOLD) {
     //papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW], 1);     
     gNumAccessHistoryOverflow++;
   }
   if (accessHistory->dataRaceFound()) {
+    RAW_LOG(INFO, "check data race called %lx 2", accessHistory);
     /* 
      * data race has already been found on this memory location, romp only 
      * reports one data race on any memory location in one run. Once the data 
@@ -126,16 +143,23 @@ rollback_label:
      */
     if (!records->empty()) {
       //papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
-      if (upgradeHelper(writeLockHeld, lockPtr, writeWriteContend)) {
+      if (upgradeHelper(writeLockHeld, readLockHeld,
+			      lockPtr, writeWriteContend, me)) {
+        RAW_LOG(INFO, "check data race called %lx 2", accessHistory);
 	goto rollback_label;
       } else {
         records->clear();
         recordModEvent(modRecorded, accessHistory);
-        pfqRWLockWriteUnlock(lock, &me);
+        pfqRWLockWriteUnlock(lockPtr, &me);
 	return;
       }
     }
     // direct return here
+    if (writeLockHeld) {
+      pfqRWLockWriteUnlock(lockPtr, &me);
+    } else if (readLockHeld) {
+      pfqRWLockReadUnlock(lockPtr);
+    }
     return;
    }
    if (accessHistory->memIsRecycled()) {
@@ -143,7 +167,7 @@ rollback_label:
      * The memory slot is recycled because of the end of explicit task. 
      * reset the memory state flag and clear the access records.
      */
-     if (upgradeHelper(writeLockHeld, lockPtr, writeWriteContend)) {
+     if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, writeWriteContend, me)) {
        goto rollback_label;
      } else {
        accessHistory->clearFlags();
@@ -161,7 +185,7 @@ rollback_label:
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
    if (records->empty()) {
     // no access record, add current access to the record
-     if (upgradeHelper(rolledBack, lockPtr, writeWriteContend)) {
+     if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, writeWriteContend, me)) {
        goto rollback_label;
      } else {
        records->push_back(curRecord);
@@ -216,7 +240,7 @@ rollback_label:
         modifyAccessHistory(decision, records, it);
       } else {
         // acquire writer lock 
-        if (upgradeHelper(writeLockHeld, lockPtr, writeWriteContend)) {
+        if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, writeWriteContend, me)) {
           goto rollback_label;
         } else {
 	  // acquired the lock
@@ -225,7 +249,7 @@ rollback_label:
       }
     }
     if (!skipAddCur) {
-      if (upgradeHelper(writeLockHeld, lockPtr, writeWriteContend)) {
+      if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, writeWriteContend, me)) {
         goto rollback_label;
       } else {
         records->push_back(curRecord); 
@@ -233,11 +257,16 @@ rollback_label:
       }
     }
     if (modFlag) {
-      recordModEvent(modRecorded);
+      recordModEvent(modRecorded, accessHistory);
       if (readWriteContend || writeWriteContend) {
         recordContendedMod(contendModRecorded, accessHistory);
       }
     }
+  }
+  if (writeLockHeld) {
+    pfqRWLockWriteUnlock(lockPtr, &me);
+  } else if (readLockHeld) {
+    pfqRWLockReadUnlock(lockPtr);
   }
 }
 

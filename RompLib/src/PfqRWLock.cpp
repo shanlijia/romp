@@ -70,6 +70,8 @@
 //******************************************************************************
 
 #include "PfqRWLock.h"
+#include <glog/logging.h>
+#include <glog/raw_logging.h>
 
 //******************************************************************************
 // macros
@@ -251,13 +253,14 @@ pfqRWLockWriteUnlock(PfqRWLock *l, PfqRWLockNode *me)
 }
 
 UpgradeResult pfqUpgrade(PfqRWLock* l, PfqRWLockNode* me) {
+  RAW_LOG(INFO, "pfqUpgrade lock %lx", l);
+  pfqRWLockReadUnlock(l); // release my reader lock 
   if (mcsTryLock(&l->wtail, me)) {
-    pfqRWLockReadUnlock(l); // release my reader lock 
     writeLockHelper(l, me);
     return eAtomicUpgraded;
   } else {
     mcsLock(&l->wtail, me);
-    pfqRWLockReadUnlock(l); // release my reader lock 
+ //   pfqRWLockReadUnlock(l); // release my reader lock 
     writeLockHelper(l, me); 
     return eNonAtomicUpgraded;
   }

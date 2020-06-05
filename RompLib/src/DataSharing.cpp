@@ -77,9 +77,11 @@ void recycleMemRange(void* lowerBound, void* upperBound) {
   for (auto addr = start; addr <= end; addr++) {
     auto accessHistory = shadowMemory.getShadowMemorySlot(addr);
     //std::unique_lock<std::mutex> guard(accessHistory->getMutex());
-    McsNode node;
-    LockGuard guard(&(accessHistory->getLock()), &node);
+    auto lock = &(accessHistory->getLock());
+    PfqRWLockNode me;
+    pfqRWLockWriteLock(lock, &me);
     accessHistory->setFlag(eMemoryRecycled);
+    pfqRWLockWriteUnlock(lock, &me);
   }
 }
 

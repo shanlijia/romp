@@ -121,7 +121,7 @@ def main():
     print('exec:', app)
     outputLog = getLogName(app)
     with open(outputLog, 'w+') as f:
-      process = subprocess.run([app, '5000'], stdout=f, stderr=f)
+      process = subprocess.run([app, '5000','10'], stdout=f, stderr=f)
     print('generated output log:', outputLog)
   for app in apps:
     outputLog = getLogName(app)

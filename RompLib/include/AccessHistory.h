@@ -40,35 +40,17 @@ private:
 };
 
 class LockGuard {
-/*
- * We apply reader lock guard.
- */
 public:
-  LockGuard(PfqRWLock* lock): _lock(lock) {
-    pfqRWLockReadLock(lock);
-  }
-
-  LockGuard(AccessHistory* history, bool& readWriteContend, bool rolledBack) {
-    _lock = &(history->getLock());
-    _rolledBack = rolledBack;
-    readWriteContend = false;
-    if (!rolledBack) {
-      if (pfqRWLockReadLock(_lock)) {
-        readWriteContend = true;  
-      }
-    } e
-      
-    }
+  LockGuard(McsLock* lock, McsNode* node): _lock(lock), _node(node) {
+    mcsLock(_lock, _node);
   }
 
   ~LockGuard() {
-    pfqRWLockReadUnlock(_lock);
+    mcsUnlock(_lock, _node);
   }
-
 private:
-  PfqRWLock* _lock;
-  bool _rolledBack;
-
+  McsLock* _lock;
+  McsNode* _node;
 };
 
 }
