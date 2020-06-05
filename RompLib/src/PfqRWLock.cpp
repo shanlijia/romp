@@ -118,15 +118,17 @@ pfqRWLockInit(PfqRWLock *l)
   l->whead = MCS_NIL;
 }
 
-void
+bool
 pfqRWLockReadLock(PfqRWLock *l)
 {
   uint32_t ticket = std::atomic_fetch_add_explicit(&l->rin, READER_INCREMENT, std::memory_order_acq_rel);
-
+  bool writerPresent = false;
   if (ticket & WRITER_PRESENT) {
     uint32_t phase = ticket & PHASE_BIT;
+    writerPresent = true;
     while (std::atomic_load_explicit(&l->writer_blocking_readers[phase].bit, std::memory_order_acquire));
   }
+  return writerPresent;
 }
 
 

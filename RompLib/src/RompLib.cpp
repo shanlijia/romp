@@ -11,6 +11,7 @@
 #include "Initialize.h"
 #include "Label.h"
 #include "LockSet.h"
+#include "PfqRWLock.h"
 #include "ShadowMemory.h"
 #include "Stats.h"
 #include "TaskData.h"
@@ -35,24 +36,76 @@ extern std::atomic_long gNumAccessHistoryOverflow;
 extern std::atomic_long gNumDupMemAccess;
 extern std::unordered_map<void*, int> gAccessHistoryMap;
 McsLock gMapLock;
+
 /*
- * Driver function to do data race checking and access history management.
+ * return true if atomic upgrade fails and needs to roll back
  */
-void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel, 
-                   const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
-  McsNode node;
-  gNumCheckAccessCall++;
-  bool isContended = false;
-  LockGuard guard(accessHistory, &node, isContended);
-  accessHistory->numAccess++; 
-  if (isContended) {
+bool upgradeHelper(bool& writeLockHeld, PfqRWLock* lock, bool& wwContended) {
+  if (writeLockHeld) {
+    return false;
+  }
+  wwContended = false;
+  PfqRWLockNode me; 
+  auto res = pfqUpgrade(lock, &me);
+  writeLockHeld = true;
+  if (res == eAtomicUpgraded) {
+    return false;
+  } else {
+    wwContended = true;
+    return true;
+  }
+}
+
+
+void recordContendedAccess(bool& contendAccessRecorded, AccessHistory* accessHistory) {
+  if (!contendAccessRecorded) {
     gNumContendedAccess++;   
     accessHistory->numContendedAccess++;
     McsNode mapNode;
     mcsLock(&gMapLock, &mapNode);
     gAccessHistoryMap[(void*)accessHistory]++;  
     mcsUnlock(&gMapLock, &mapNode);
-  }  
+  }
+  contendAccessRecorded = true;
+}
+
+void recordContendedMod(bool& contendModRecorded, AccessHistory* accessHistory) {
+  if (!contendModRecorded) {
+    gNumContendedMod++;
+    accessHistory->numContendedMod++;
+  }
+  contendModRecorded = true;
+}
+
+void recordModEvent(bool& modRecorded, AccessHistory* accessHistory) {
+  if (!modRecorded) {
+    gNumModAccessHistory++;
+    accessHistory->numMod++;
+  }
+  modRecorded = true;
+}
+/*
+ * Driver function to do data race checking and access history management.
+ */
+void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel, 
+                   const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
+  gNumCheckAccessCall++;
+  bool readWriteContend = false;
+  bool writeWriteContend = false;   
+  bool writeLockHeld = false;
+  bool contendAccessRecorded = false;
+  bool contendModRecorded = false;
+  bool modRecorded = false;
+  auto lockPtr = &(accessHistory->getLock());   
+  if (pfqRWLockReadLock(lockPtr)) {
+    readWriteContend = true;
+  }
+  accessHisjory->numAccess++; 
+  // now we acquired the read lock
+rollback_label:
+  if (readWriteContend || writeWriteContend) {
+    recordContendedAccess(contendAccessRecorded, accessHistory);
+  }
   auto dataSharingType = checkInfo.dataSharingType;
   if (dataSharingType == eThreadPrivateBelowExit || 
           dataSharingType == eStaticThreadPrivate) {
@@ -60,7 +113,7 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
   }
   auto records = accessHistory->getRecords();
   if (records->size() > REC_NUM_THRESHOLD) {
-    papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW], 1);     
+    //papi_sde_inc_counter(sdeCounters[EVENT_REC_NUM_OVERFLOW], 1);     
     gNumAccessHistoryOverflow++;
   }
   if (accessHistory->dataRaceFound()) {
@@ -72,45 +125,52 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      * to this memory location does not go through data race checking.
      */
     if (!records->empty()) {
-      papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
-      gNumModAccessHistory++;
-      accessHistory->numMod++;
-      records->clear();
+      //papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
+      if (upgradeHelper(writeLockHeld, lockPtr, writeWriteContend)) {
+	goto rollback_label;
+      } else {
+        records->clear();
+        recordModEvent(modRecorded, accessHistory);
+        pfqRWLockWriteUnlock(lock, &me);
+	return;
+      }
     }
+    // direct return here
     return;
-  }
-  if (accessHistory->memIsRecycled()) {
+   }
+   if (accessHistory->memIsRecycled()) {
     /*
      * The memory slot is recycled because of the end of explicit task. 
      * reset the memory state flag and clear the access records.
      */
-     accessHistory->clearFlags();
-     records->clear();
-     papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
-     gNumModAccessHistory++;
-     accessHistory->numMod++;
-     return;
-  }
+     if (upgradeHelper(writeLockHeld, lockPtr, writeWriteContend)) {
+       goto rollback_label;
+     } else {
+       accessHistory->clearFlags();
+       records->clear();
+       recordModEvent(modRecorded, accessHistory);
+      }
+    } 
   /*
   if (isDupMemAccess(checkInfo)) {
     gNumDupMemAccess++;
     return;
   }
   */
-  
-  auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
+   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
-  if (records->empty()) {
+   if (records->empty()) {
     // no access record, add current access to the record
-    records->push_back(curRecord);
-    papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
-    gNumModAccessHistory++;
-    accessHistory->numMod++;
-    if (isContended) {
-      gNumContendedMod++;
-      accessHistory->numContendedMod++;
-    }
-  } else {
+     if (upgradeHelper(rolledBack, lockPtr, writeWriteContend)) {
+       goto rollback_label;
+     } else {
+       records->push_back(curRecord);
+       recordModEvent(modRecorded, accessHistory);
+     }
+     if (readWriteContend || writeWriteContend) {
+       recordContendedMod(contendModRecorded, accessHistory);
+     }
+   } else {
     // check previous access records with current access
     auto isHistBeforeCurrent = false;
     auto it = records->begin();
@@ -147,22 +207,36 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
         skipAddCur = true;
       }
       if (decision != eNoOp) {
-        papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
+      //  papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
 	modFlag = true;
       }
-      modifyAccessHistory(decision, records, it);
-    }
-    if (modFlag) {
-      gNumModAccessHistory++;
-      accessHistory->numMod++;
-      if (isContended) {
-        gNumContendedMod++;
-        accessHistory->numContendedMod++;
+      if (decision == eNoOp || writeLockHeld) {
+        // either just proceeds to next record or 
+	// writer lock has already been held
+        modifyAccessHistory(decision, records, it);
+      } else {
+        // acquire writer lock 
+        if (upgradeHelper(writeLockHeld, lockPtr, writeWriteContend)) {
+          goto rollback_label;
+        } else {
+	  // acquired the lock
+          modifyAccessHistory(decision, records, it);
+        }
       }
-      papi_sde_inc_counter(sdeCounters[EVENT_MOD_NUM_COUNT], 1); 
     }
     if (!skipAddCur) {
-      records->push_back(curRecord); 
+      if (upgradeHelper(writeLockHeld, lockPtr, writeWriteContend)) {
+        goto rollback_label;
+      } else {
+        records->push_back(curRecord); 
+	// don't record the mod here
+      }
+    }
+    if (modFlag) {
+      recordModEvent(modRecorded);
+      if (readWriteContend || writeWriteContend) {
+        recordContendedMod(contendModRecorded, accessHistory);
+      }
     }
   }
 }

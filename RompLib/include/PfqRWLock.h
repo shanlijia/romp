@@ -131,7 +131,7 @@ enum UpgradeResult {
 
 void pfqRWLockInit(PfqRWLock *l);
 
-void pfqRWLockReadLock(PfqRWLock *l);
+bool pfqRWLockReadLock(PfqRWLock *l);
 
 void pfqRWLockReadUnlock(PfqRWLock *l);
 

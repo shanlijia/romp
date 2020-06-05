@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 
-#include "McsLock.h"
+#include "PfqRWLock.h"
 #include "Record.h"
 
 namespace romp {
@@ -17,8 +17,8 @@ enum AccessHistoryFlag {
 class AccessHistory {
 
 public: 
-  AccessHistory() : _state(0) { mcsInit(&_lock); }
-  McsLock& getLock();
+  AccessHistory() : _state(0) { pfqRWLockInit(&_lock); }
+  PfqRWLock& getLock();
   std::vector<Record>* getRecords();
   void setFlag(AccessHistoryFlag flag);
   void clearFlags();
@@ -33,34 +33,42 @@ public:
 private:
   void _initRecords();
 private:
-  McsLock _lock; 
+  PfqRWLock _lock; 
   uint64_t _state;  
   std::unique_ptr<std::vector<Record>> _records; 
   
 };
 
 class LockGuard {
+/*
+ * We apply reader lock guard.
+ */
 public:
-  LockGuard(McsLock* lock, McsNode* node): _lock(lock), _node(node) {
-    mcsLock(_lock, _node);
+  LockGuard(PfqRWLock* lock): _lock(lock) {
+    pfqRWLockReadLock(lock);
   }
 
-  LockGuard(AccessHistory* history, McsNode* node, bool& isContended) {
+  LockGuard(AccessHistory* history, bool& readWriteContend, bool rolledBack) {
     _lock = &(history->getLock());
-    _node = node;
-    isContended = false;    
-    if (!mcsTryLock(_lock, _node)) {
-      isContended = true;
-      mcsLock(_lock, _node);
+    _rolledBack = rolledBack;
+    readWriteContend = false;
+    if (!rolledBack) {
+      if (pfqRWLockReadLock(_lock)) {
+        readWriteContend = true;  
+      }
+    } e
+      
     }
   }
 
   ~LockGuard() {
-    mcsUnlock(_lock, _node);
+    pfqRWLockReadUnlock(_lock);
   }
+
 private:
-  McsLock* _lock;
-  McsNode* _node;
+  PfqRWLock* _lock;
+  bool _rolledBack;
+
 };
 
 }
