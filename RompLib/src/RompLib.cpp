@@ -11,6 +11,7 @@
 #include "Initialize.h"
 #include "Label.h"
 #include "LockSet.h"
+#include "PfqRWLock.h"
 #include "ShadowMemory.h"
 #include "TaskData.h"
 #include "ThreadData.h"
@@ -25,18 +26,62 @@ using LockSetPtr = std::shared_ptr<LockSet>;
 ShadowMemory<AccessHistory> shadowMemory;
 
 /*
+ *  This helper function is called when checkAccess() determines that 
+ *  there exists intent to modify access history. It return true if 
+ *  the reader lock cannot be directly upgraded to writer lock without 
+ *  rolling back the traversal of access records. It return false if 
+ *  the upgrade from reader lock to writer lock is a success and no 
+ *  rolling back is required.
+ */
+bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld, 
+		   PfqRWLock* lock, PfqRWLockNode& me) {
+  if (writeLockHeld) {
+    // the writer lock is already held
+    return false;
+  }
+  auto res = pfqUpgrade(lock, &me);
+  writeLockHeld = true;
+  readLockHeld = false;
+  if (res == eAtomicUpgraded) {
+    return false; 
+  } else {
+    return true;
+  }
+}
+
+
+/*
  * Driver function to do data race checking and access history management.
+ * We use reader-writer lock to enforce synchronization of shadow memory 
+ * accesses.
  */
 void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel, 
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
-  McsNode node;
-  LockGuard guard(&(accessHistory->getLock()), &node);
+  auto writeLockHeld = false;
+  auto readLockHeld = false;  
+  auto lockPtr = &(accessHistory->getLock());  
+  PfqRWLockNode me;
+  pfqRWLockReadLock(lockPtr); // acquire reader lock
+  readLockHeld = true;
+
+  auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
+          checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
+rollback:
+  auto records = accessHistory->peekRecords();
   auto dataSharingType = checkInfo.dataSharingType;
+
   if (dataSharingType == eThreadPrivateBelowExit || 
           dataSharingType == eStaticThreadPrivate) {
-    return;
+    goto check_finish; 
   }
-  auto records = accessHistory->getRecords();
+  if (records == nullptr) {
+    // need to write 
+    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+      goto rollback;
+    } else {
+      records = accessHistory->getRecords();
+    }
+  }
   if (accessHistory->dataRaceFound()) {
     /* 
      * data race has already been found on this memory location, romp only 
@@ -45,34 +90,38 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
      * memory location and mark this memory location as found. Future access 
      * to this memory location does not go through data race checking.
      */
-    if (!records->empty()) {
-      records->clear();
+    if (!records->empty()) {  
+      if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+        goto rollback;
+      }  else {
+        records->clear();
+      }
     }
-    return;
+    goto check_finish;   
   }
   if (accessHistory->memIsRecycled()) {
     /*
      * The memory slot is recycled because of the end of explicit task. 
      * reset the memory state flag and clear the access records.
      */
+    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+      goto rollback;
+    }
      accessHistory->clearFlags();
      records->clear();
-     return;
   }
-  if (isDupMemAccess(checkInfo)) {
-    return;
-  }
-  auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
-          checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
   if (records->empty()) {
-    // no access record, add current access to the record
-    records->push_back(curRecord);
+    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+      goto rollback;
+    }
+    records->push_back(curRecord); 
   } else {
     // check previous access records with current access
     auto isHistBeforeCurrent = false;
     auto it = records->begin();
     std::vector<Record>::const_iterator cit;
     auto skipAddCur = false;
+    auto modFlag = false;
     int diffIndex;
     while (it != records->end()) {
       cit = it; 
@@ -99,11 +148,33 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
       if (decision == eSkipAddCur) {
         skipAddCur = true;
       }
-      modifyAccessHistory(decision, records, it);
+      if (decision != eNoOp) {
+        modFlag = true;
+      }
+      if (decision == eNoOp || writeLockHeld) {
+        // either the current decision is to do nothing, or the write lock is 
+	// already held. 
+        modifyAccessHistory(decision, records, it);
+      } else {
+        if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+          goto rollback;
+	} else {
+          modifyAccessHistory(decision, records, it);
+	}
+      }   
     }
     if (!skipAddCur) {
+      if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+        goto rollback;
+      }  
       records->push_back(curRecord); 
     }
+  }
+check_finish:
+  if (writeLockHeld) {
+    pfqRWLockWriteUnlock(lockPtr, &me);
+  } else if (readLockHeld) {
+    pfqRWLockReadUnlock(lockPtr); 
   }
 }
 

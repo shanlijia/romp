@@ -9,7 +9,7 @@ void AccessHistory::_initRecords() {
   _records = std::make_unique<std::vector<Record>>();
 }
 
-McsLock& AccessHistory::getLock() {
+PfqRWLock& AccessHistory::getLock() {
   return _lock;
 }
 
@@ -22,6 +22,10 @@ std::vector<Record>* AccessHistory::getRecords() {
   if (!_records.get()) {
     _initRecords();
   }
+  return _records.get();
+}
+
+std::vector<Record>* AccessHistory::peekRecords() {
   return _records.get();
 }
 
