@@ -96,13 +96,4 @@ void* computeAddressRangeEnd(void* baseAddr, size_t chunkSize) {
   return reinterpret_cast<void*>(rangeEnd);
 }
 
-void incrementLabelId() {
-  void* threadDataPtr = nullptr;
-  if (!queryOmpThreadInfo(threadDataPtr)) {
-    return;
-  }
-  auto threadData = static_cast<ThreadData*>(threadDataPtr);
-  threadData->labelId++;
-}
-
 }

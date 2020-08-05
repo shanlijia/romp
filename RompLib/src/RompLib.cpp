@@ -24,7 +24,6 @@ using LabelPtr = std::shared_ptr<Label>;
 using LockSetPtr = std::shared_ptr<LockSet>;
 
 ShadowMemory<AccessHistory> shadowMemory;
-
 /*
  *  This helper function is called when checkAccess() determines that 
  *  there exists intent to modify access history. It return true if 

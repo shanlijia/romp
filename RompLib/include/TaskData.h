@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace romp {
@@ -17,6 +18,7 @@ typedef struct TaskData {
   std::shared_ptr<LockSet> lockSet;
   bool inReduction;
   std::vector<void*> childExpTaskData;
+  std::unordered_map<uint64_t, bool> redundantMap;
   void* exitFrame; 
   int expLocalId; // if the task is explicit, store its local id in par region
   bool isMutexTask;
