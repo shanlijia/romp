@@ -4,6 +4,7 @@
 
 #include "DataSharing.h"
 #include "QueryFuncs.h"
+#include "TaskData.h"
 /*
  * This header files defines a set of functions used in romp that are not 
  * closely related to the core data race detection algorithm. For example, 
@@ -70,6 +71,7 @@ void reportDataRace(void* instnAddrPrev, void* instnAddrCur, uint64_t address);
 
 void* computeAddressRangeEnd(void* baseAddr, size_t chunkSize);
 
-void incrementLabelId();
+void incrementTaskId();
 
+bool isDupMemAccess(TaskData* taskData, bool isWrite, void* address);
 }

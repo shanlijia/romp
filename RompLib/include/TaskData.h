@@ -3,6 +3,8 @@
 #include <memory>
 #include <vector>
 
+#include "DupMemTable.h"
+
 namespace romp {
 class Label;
 class LockSet;
@@ -18,7 +20,8 @@ typedef struct TaskData {
   std::shared_ptr<LockSet> lockSet;
   bool inReduction;
   std::vector<void*> childExpTaskData;
-  std::atomic_uint64_t labelId; // increment everytime the task label gets mutated
+  std::atomic_uint64_t taskId; 
+  std::unique_ptr<DupMemTable> dupTable; 
   void* exitFrame; 
   int expLocalId; // if the task is explicit, store its local id in par region
   bool isMutexTask;
@@ -31,6 +34,8 @@ typedef struct TaskData {
     expLocalId = 0;
     isMutexTask = false;
     isExplicitTask = false;
+    taskId = 0;
+    dupTable = std::make_unique<DupMemTable>();
   }
 
 } TaskData;

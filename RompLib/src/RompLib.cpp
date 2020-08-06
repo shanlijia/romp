@@ -238,7 +238,12 @@ void checkAccess(void* address,
     RAW_LOG(WARNING, "pointer to current task data is null");
     return;
   }
+
   auto curTaskData = static_cast<TaskData*>(allTaskInfo.taskData->ptr);
+  if (isDupMemAccess(curTaskData, isWrite, address)) {
+    RAW_LOG(INFO, "dup mem accesses");
+    return;
+  }
   curTaskData->exitFrame = allTaskInfo.taskFrame->exit_frame.ptr;
   auto& curLabel = curTaskData->label;
   auto& curLockSet = curTaskData->lockSet;
