@@ -102,7 +102,6 @@ void incrementLabelId() {
     return;
   }
   auto threadData = static_cast<ThreadData*>(threadDataPtr);
-  threadData->labelId++;
 }
 
 }

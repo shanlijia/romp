@@ -738,19 +738,7 @@ void modifyAccessHistory(RecordManagement decision,
 }
 
 bool isDupMemAccess(const CheckInfo& checkInfo) {
-  void* threadDataPtr = nullptr;
-  if (!queryOmpThreadInfo(threadDataPtr)) {
-    RAW_LOG(INFO, "cannot query omp thread info");
-    return false;
-  } 
-  auto threadData = static_cast<ThreadData*>(threadDataPtr);
-  auto curLabelId = threadData->labelId.load();
-  auto memAddr = checkInfo.byteAddress;
-  if (checkInfo.isWrite) {
-    return threadData->isDupWrite(memAddr, curLabelId);
-  } else {
-    return threadData->isDupRead(memAddr, curLabelId);   
-  }
+
 }
 
 }

@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -17,6 +18,7 @@ typedef struct TaskData {
   std::shared_ptr<LockSet> lockSet;
   bool inReduction;
   std::vector<void*> childExpTaskData;
+  std::atomic_uint64_t labelId; // increment everytime the task label gets mutated
   void* exitFrame; 
   int expLocalId; // if the task is explicit, store its local id in par region
   bool isMutexTask;
@@ -30,6 +32,7 @@ typedef struct TaskData {
     isMutexTask = false;
     isExplicitTask = false;
   }
+
 } TaskData;
 
 }
