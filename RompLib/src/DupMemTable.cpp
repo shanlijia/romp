@@ -1,8 +1,11 @@
 #include "DupMemTable.h"
 
+#include <glog/logging.h>
+#include <glog/raw_logging.h>
+
 namespace romp {
 
-void DupMemTable::removeNode(HashNode* node) {
+void DupMemTable::removeNode(HashNodePtr node) {
   if (node->prev != nullptr) {
     node->prev->next = node->next;
   } else {
@@ -15,14 +18,9 @@ void DupMemTable::removeNode(HashNode* node) {
   }
 }	
 
-void DupMemTable::deleteNode(HashNode* node) {
-  removeNode(node);
-  delete node;
-}
-
-void DupMemTable::addNode(HashNode* node) {
+void DupMemTable::addNode(HashNodePtr node) {
   if (_tail != nullptr) {
-    tail->next = node;
+    _tail->next = node;
   }
   node->prev = _tail;
   node->next = nullptr;
@@ -40,10 +38,11 @@ void DupMemTable::put(uint64_t key, bool value) {
     addNode(node);
   } else {
     if (_table.size() >= _capacity) {
+      RAW_LOG(INFO, "remove _head");
+      removeNode(_head); 
       _table.erase(_head->key); // remove the least touched node
-      deleteNode(_head);
     }
-    auto node = new HashNode(key, value);         
+    auto node = std::make_shared<HashNode>(key, value);         
     addNode(node);
     _table[key] = node;
   }
@@ -100,12 +99,11 @@ bool DupMemTable::isDupAccess(void* address, bool isWrite, uint64_t taskId) {
 void DupMemTable::clear() {
   for (const auto& pair : _table) {
     auto node = pair.second;
-    deleteNode(node);
+    removeNode(node);
   }
+  _tail = nullptr;
+  _head = nullptr;
   _table.clear();
 }
 
 }
-
-
-

@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <unordered_map>
 
 namespace romp {
@@ -12,9 +13,9 @@ namespace romp {
  * The DupMemTable is implemented as an LRU cache.
  */
 
-typedef HashNode {
-  HashNode* prev;
-  HashNode* next;
+typedef struct HashNode {
+  std::shared_ptr<HashNode> prev;
+  std::shared_ptr<HashNode> next;
   uint64_t key;
   bool value;  
   HashNode(uint64_t key, bool value) {
@@ -24,6 +25,8 @@ typedef HashNode {
     value = value;
   }	  
 } HashNode;
+
+using HashNodePtr = std::shared_ptr<HashNode>;
 
 class DupMemTable {
 public:
@@ -35,7 +38,7 @@ public:
   }
   DupMemTable() { 
     _taskId = 0; 
-    _capacity = 32;
+    _capacity = 32; // set default memory 
     _head = nullptr;
     _tail = nullptr; 
   }
@@ -44,15 +47,14 @@ public:
 private:
   void put(uint64_t key, bool value);
   bool get(uint64_t key, bool& value);
-  void removeNode(HashNode* node);
-  void addNode(HashNode* node);
-  void deleteNode(HashNode* node);
+  void removeNode(HashNodePtr node);
+  void addNode(HashNodePtr node);
 private:
   uint32_t  _capacity;
-  std::unordered_map<uint64_t, HashNode*> _table;    
+  std::unordered_map<uint64_t, HashNodePtr> _table;    
   uint64_t _taskId;
-  HashNode* _head;
-  HashNode* _tail;
+  HashNodePtr _head;
+  HashNodePtr _tail;
 };
 
 
