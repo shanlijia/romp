@@ -113,18 +113,23 @@ rollback:
     if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
       goto rollback;
     }
+    if (checkInfo.isWrite) {
+      accessHistory->setState(eSingleWrite);
+    } else {
+      accessHistory->setState(eSingleRead);
+    }
     records->push_back(curRecord); 
   } else {
     // check previous access records with current access
     auto isHistBeforeCurrent = false;
+    int diffIndex;
     auto it = records->begin();
     std::vector<Record>::const_iterator cit;
-    auto skipAddCur = false;
-    auto modFlag = false;
-    int diffIndex;
     while (it != records->end()) {
       cit = it; 
       auto histRecord = *cit;
+      auto histLabel = histRecord.getLabel();   
+      isHistBeforeCurrent = happensBefore(histLabel, curLabel.get(), diffIndex);
       if (analyzeRaceCondition(histRecord, curRecord, isHistBeforeCurrent, 
                   diffIndex)) {
         gDataRaceFound = true;
@@ -142,31 +147,21 @@ rollback:
         accessHistory->setFlag(eDataRaceFound);  
 	break;
       }
-      auto decision = manageAccessRecord(histRecord, curRecord, 
-              isHistBeforeCurrent, diffIndex);
-      if (decision == eSkipAddCur) {
-        skipAddCur = true;
-      }
-      if (decision != eNoOp) {
-        modFlag = true;
-      }
-      if (decision == eNoOp || writeLockHeld) {
-        // either the current decision is to do nothing, or the write lock is 
-	// already held. 
-        modifyAccessHistory(decision, records, it);
+      auto [nextState, action] = manageAccessRecord(accessHistory, histRecord, curRecord, 
+		                       isHistBeforeCurrent, diffIndex); 
+      if (writeLockHeld || action == eNoAction) {
+        // either the writer lock is already held, or the action is none
+	accessHistory->setState(nextState);
+        modifyAccessHistory(action, records, it, curRecord); 
       } else {
         if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+          // have to go back to roll back state
           goto rollback;
 	} else {
-          modifyAccessHistory(decision, records, it);
+	  accessHistory->setState(nextState);
+          modifyAccessHistory(action, records, it, curRecord);
 	}
       }   
-    }
-    if (!skipAddCur) {
-      if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
-        goto rollback;
-      }  
-      records->push_back(curRecord); 
     }
   }
 check_finish:

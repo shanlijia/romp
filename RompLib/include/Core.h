@@ -25,10 +25,25 @@ enum CheckCase {
   eWorkWork = eWorkShare | (eWorkShare << CASE_SHIFT),
 }; 
 
-enum RecordManagement{
-  eNoOp,
-  eSkipAddCur,
-  eDelHist,
+enum RecordAction {
+  eNoAction = 0x0,
+  eDelHistAddCur = 0x1,
+  eAddCur = 0x2,
+  eDelHist = 0x3,
+  eErrorAction = 0x4,
+  eDelAllAddCur = 0x5,
+  eDelOtherAddCur = 0x6,
+};
+
+enum NodeRelation {
+  eAncestorChild = 0x1,
+  eParentChild = 0x2,
+  eSameNode = 0x3,
+  eSibling = 0x4,
+  eNonSiblingHistCover = 0x5,
+  eNonSiblingCurCover = 0x6,
+  eNonSiblingSameRank = 0x7,
+  eErrorRelation = 0x8,  
 };
 
 bool happensBefore(Label* histLabel, Label* curLabel, int& diffIndex);
@@ -47,7 +62,7 @@ bool analyzeOrderedDescendents(Label* histLabel, int index, uint64_t histPhase);
 bool analyzeSyncChain(Label* label, int index);
 bool analyzeMutualExclusion(const Record& histRecord, const Record& curRecord);
 bool analyzeRaceCondition(const Record& histRecord, const Record& curRecord, 
-                          bool& isHistBeforeCur, int& diffIndex);
+                          bool isHistBeforeCur, int diffIndex);
 bool analyzeTaskGroupSync(Label* histLabel, Label* curLabel, int index);
 
 bool dispatchAnalysis(CheckCase checkCase, Label* hist, Label* cur, int index);
@@ -55,15 +70,34 @@ uint64_t computeExitRank(uint64_t phase);
 uint64_t computeEnterRank(uint64_t phase);
 inline CheckCase buildCheckCase(SegmentType histType, SegmentType curType);
 
-RecordManagement manageAccessRecord(const Record& histRecord,
-                                    const Record& curRecord, 
-                                    bool isHistBeforeCur,
-                                    int diffIndex);
 
-void modifyAccessHistory(RecordManagement decision,
+std::pair<AccessHistoryState, RecordAction> manageAccessRecord(
+		                AccessHistory* accessHistory, 
+		                const Record& histRecord,
+                                const Record& curRecord, 
+                                bool isHistBeforeCur,
+				int diffIndex);
+
+
+void modifyAccessHistory(RecordAction action,
                          std::vector<Record>* records,
-                         std::vector<Record>::iterator& cit);
+                         std::vector<Record>::iterator& cit,
+		         const Record& curRecord);
 
-bool isDupMemAccess(const CheckInfo& checkInfo);
+NodeRelation calcNodeRelation(const Record& histRec, const Record& curRec, 
+		              bool isHistBeforeCur, int diffIndex);
+
+NodeRelation calcRelationSameTask(const Record& histRec, const Record& curRec,
+		                  int diffIndex);
+
+NodeRelation calcRelationSiblingTask(const Record& histRec, const Record& curRec,
+		                     int diffIndex);
+
+std::pair<AccessHistoryState, RecordAction>
+stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
+	      const Record& histRecord, const Record& curRecord);
+
+bool isParentChildRelation(int diffIndex, int histLabelLength, int curLabelLength);
+
 
 }
