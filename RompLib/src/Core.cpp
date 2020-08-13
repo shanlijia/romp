@@ -1491,6 +1491,9 @@ stateTransfer(const AccessHistoryState oldState, const NodeRelation relation,
       return stateTransferWRR(relation, histRec, curRec); 
     case eMultiRec:
       return stateTransferMultiRec(relation, histRec, curRec);
+    case eEmpty:
+      RAW_LOG(WARNING, "not expecting to be empty state");
+      break;
     default:
       RAW_LOG(WARNING, "not expecting to be default case: %d", oldState);
   }	  

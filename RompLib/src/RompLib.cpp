@@ -149,7 +149,7 @@ rollback:
       }
       auto [nextState, action] = manageAccessRecord(accessHistory, histRecord, curRecord, 
 		                       isHistBeforeCurrent, diffIndex); 
-      if (writeLockHeld || action == eNoAction) {
+      if (writeLockHeld) {
         // either the writer lock is already held, or the action is none
 	accessHistory->setState(nextState);
         modifyAccessHistory(action, records, it, curRecord); 
