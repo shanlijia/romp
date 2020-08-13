@@ -1,4 +1,5 @@
 #include "CoreUtil.h"
+#include "TaskData.h"
 #include "ThreadData.h"
 
 #include <glog/logging.h>
@@ -94,6 +95,21 @@ void reportDataRace(void* instnAddrPrev, void* instnAddrCur, uint64_t memAddr) {
 void* computeAddressRangeEnd(void* baseAddr, size_t chunkSize) {
   auto rangeEnd = reinterpret_cast<uint64_t>(baseAddr) + chunkSize - 1;
   return reinterpret_cast<void*>(rangeEnd);
+}
+
+void incrementTaskId() {
+  int taskType, threadNum;
+  void* dataPtr;  
+  if (!queryTaskInfo(0, taskType, threadNum, dataPtr)) {
+    return; 
+  }	  
+  auto taskData = static_cast<TaskData*>(dataPtr);
+  taskData->taskId++;   
+}
+
+bool isDupMemAccess(TaskData* taskData, bool isWrite, void* address) {
+  auto taskId = taskData->taskId.load();
+  return taskData->dupTable->isDupAccess(address, isWrite, taskId);
 }
 
 }

@@ -1,7 +1,10 @@
 #pragma once
+#include <atomic>
 #include <memory>
 #include <unordered_map>
 #include <vector>
+
+#include "DupMemTable.h"
 
 namespace romp {
 class Label;
@@ -18,7 +21,8 @@ typedef struct TaskData {
   std::shared_ptr<LockSet> lockSet;
   bool inReduction;
   std::vector<void*> childExpTaskData;
-  std::unordered_map<uint64_t, bool> redundantMap;
+  std::atomic_uint64_t taskId; 
+  std::unique_ptr<DupMemTable> dupTable; 
   void* exitFrame; 
   int expLocalId; // if the task is explicit, store its local id in par region
   bool isMutexTask;
@@ -31,7 +35,10 @@ typedef struct TaskData {
     expLocalId = 0;
     isMutexTask = false;
     isExplicitTask = false;
+    taskId = 0;
+    dupTable = std::make_unique<DupMemTable>();
   }
+
 } TaskData;
 
 }

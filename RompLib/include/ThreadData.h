@@ -1,5 +1,4 @@
 #pragma once
-#include <atomic>
 #include <unordered_map>
 #define ADDR_MAX 0xffffffffffff
 
@@ -14,8 +13,6 @@ typedef struct ThreadData {
   void* stackBaseAddr;
   void* stackTopAddr;
   void* lowestAccessedAddr;
-  std::atomic_uint64_t labelId;
-  
   ThreadData() : stackBaseAddr(nullptr), 
                  stackTopAddr(nullptr), 
                  lowestAccessedAddr((void*)ADDR_MAX) {}
