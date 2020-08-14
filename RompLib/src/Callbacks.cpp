@@ -359,7 +359,7 @@ inline std::shared_ptr<Label> handleOmpWorkTaskLoop(
         const std::shared_ptr<Label>& label, 
         uint64_t count) {
   // TODO: determine label mutation rule for taskloop begin
-  RAW_LOG(INFO, "task loop %lu", count);
+  //RAW_LOG(INFO, "task loop %lu", count);
   /*
   std::shared_ptr<Label> mutatedLabel = nullptr;
   if (endPoint == ompt_scope_begin) {

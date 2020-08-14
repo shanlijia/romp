@@ -62,7 +62,7 @@ bool queryTaskInfo(const int ancestorLevel,
               NULL, &threadNum);
   dataPtr = taskDataPtr->ptr;
   if (!dataPtr || !infoIsAvailable(retVal)) {
-    RAW_LOG(WARNING, "task data info is not available");
+    //RAW_LOG(WARNING, "task data info is not available");
     return false;
   }
   return true; 

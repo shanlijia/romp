@@ -38,11 +38,13 @@ void DupMemTable::put(uint64_t key, bool value) {
     addNode(node);
   } else {
     if (_table.size() >= _capacity) {
-      RAW_LOG(INFO, "remove _head");
-      removeNode(_head); 
+      RAW_LOG(INFO, "table size larger than capacity, %d %d", 
+		      _table.size(), _capacity);
       _table.erase(_head->key); // remove the least touched node
+      removeNode(_head); 
     }
     auto node = std::make_shared<HashNode>(key, value);         
+    RAW_LOG(INFO, "put(), starting to add node capacity: %d", _capacity);
     addNode(node);
     _table[key] = node;
   }

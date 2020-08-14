@@ -1556,22 +1556,22 @@ void modifyAccessHistory(RecordAction action,
   } else if (action == eDelHist) {
     it = records->erase(it);
   } else if (action == eDelHistAddCur) {
-    RAW_LOG(INFO, "action is eDelHistAddCur");
+    //RAW_LOG(INFO, "action is eDelHistAddCur");
     it = records->erase(it); 
     it = records->insert(it, curRecord);
     it++;
   } else if (action == eAddCur) {
-    RAW_LOG(INFO, "action is eAddCur");
+    //RAW_LOG(INFO, "action is eAddCur");
     it = records->insert(it, curRecord);   
     it++;
     it++;
   } else if (action == eDelAllAddCur) {
-    RAW_LOG(INFO, "action is eDelAllAddCur");
+    //RAW_LOG(INFO, "action is eDelAllAddCur");
     records->clear();
     records->push_back(curRecord);
     it = records->begin();
   } else if (action == eDelOtherAddCur) {
-    RAW_LOG(INFO, "action is eDelOtherAddCur");
+    //RAW_LOG(INFO, "action is eDelOtherAddCur");
     // keep the history record, remove other records, add current record
     auto histRecord = *it;
     records->clear();

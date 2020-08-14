@@ -235,7 +235,6 @@ void checkAccess(void* address,
 
   auto curTaskData = static_cast<TaskData*>(allTaskInfo.taskData->ptr);
   if (isDupMemAccess(curTaskData, isWrite, address)) {
-    RAW_LOG(INFO, "dup mem accesses");
     return;
   }
   curTaskData->exitFrame = allTaskInfo.taskFrame->exit_frame.ptr;
