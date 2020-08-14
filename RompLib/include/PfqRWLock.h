@@ -131,14 +131,14 @@ enum UpgradeResult {
 
 void pfqRWLockInit(PfqRWLock *l);
 
-bool pfqRWLockReadLock(PfqRWLock *l, uint32_t& ticket);
+bool pfqRWLockReadLock(PfqRWLock *l);
 
-bool pfqRWLockReadUnlock(PfqRWLock *l, uint32_t ticket);
+bool pfqRWLockReadUnlock(PfqRWLock *l);
 
 void pfqRWLockWriteLock(PfqRWLock *l, PfqRWLockNode *me);
 
 void pfqRWLockWriteUnlock(PfqRWLock *l, PfqRWLockNode *me);
 
-UpgradeResult pfqUpgrade(PfqRWLock* l, PfqRWLockNode* me, 
-		         uint32_t ticket, bool& readContend);
+UpgradeResult pfqUpgrade(PfqRWLock* l, PfqRWLockNode* me);
+
 #endif
