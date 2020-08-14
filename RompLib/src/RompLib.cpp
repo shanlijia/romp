@@ -243,10 +243,12 @@ void checkAccess(void* address,
           dataSharingType);
   for (uint64_t i = 0; i < bytesAccessed; ++i) {
     auto curAddress = reinterpret_cast<uint64_t>(address) + i;      
+    /*
     if (isDupMemAccess(curTaskData, isWrite, address)) {
       // if the byte is a duplicate access
       continue;
     }
+    */
     auto accessHistory = shadowMemory.getShadowMemorySlot(curAddress);
     checkInfo.byteAddress = curAddress;
     checkDataRace(accessHistory, curLabel, curLockSet, checkInfo);
