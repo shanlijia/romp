@@ -1011,7 +1011,7 @@ stateTransferSiblingRW(const NodeRelation relation,
         // since only one record exists in access history, add current
         nextState = eNonSiblingRW;
         action = curIsWrite? eDelOtherAddCur : eDelHistAddCur;
-	RAW_LOG(INFO, "siblingRW, hist is read, eDelOtherAddCur");
+	//RAW_LOG(INFO, "siblingRW, hist is read, eDelOtherAddCur");
         break; 
       default:
         break;
@@ -1157,7 +1157,7 @@ stateTransferNonSiblingRW(const NodeRelation relation,
         // since only one record exists in access history, add current
         nextState = eNonSiblingRW;
         action = curIsWrite? eDelOtherAddCur : eDelHistAddCur;
-	RAW_LOG(INFO, "nonsiblingRW, hist is read, eDelOtherAddCur");
+	//RAW_LOG(INFO, "nonsiblingRW, hist is read, eDelOtherAddCur");
         break; 
       default:
         break;
@@ -1260,7 +1260,7 @@ stateTransferParentChildWR(const NodeRelation relation,
       case eSibling:
         nextState = curIsWrite? eSiblingRW : eWRR;
         action = curIsWrite? eDelOtherAddCur : eAddCur;
-        RAW_LOG(INFO, "parentChildWR, hist is read, eDelOtherAddCur");
+        //RAW_LOG(INFO, "parentChildWR, hist is read, eDelOtherAddCur");
         break;
       case eNonSiblingHistCover:
       case eNonSiblingCurCover:
@@ -1268,7 +1268,7 @@ stateTransferParentChildWR(const NodeRelation relation,
         // since only one record exists in access history, add current
         nextState = eNonSiblingRW;
         action = eDelOtherAddCur;
-        RAW_LOG(INFO, "parentChildWR, hist is read, eDelOtherAddCur 2");
+        //RAW_LOG(INFO, "parentChildWR, hist is read, eDelOtherAddCur 2");
         break; 
       default:
         break;
@@ -1328,7 +1328,7 @@ stateTransferAncestorChildWR(const NodeRelation relation,
       case eSibling:
         nextState = curIsWrite? eSiblingRW : eWRR;
         action = curIsWrite? eDelOtherAddCur : eAddCur;
-        RAW_LOG(INFO, "childWR, hist is read, eDelOtherAddCur");
+        //RAW_LOG(INFO, "childWR, hist is read, eDelOtherAddCur");
         break;
       case eNonSiblingHistCover:
       case eNonSiblingCurCover:
@@ -1336,7 +1336,7 @@ stateTransferAncestorChildWR(const NodeRelation relation,
         // since only one record exists in access history, add current
         nextState = eNonSiblingRW;
         action = eDelOtherAddCur;
-        RAW_LOG(INFO, "childWR, hist is read, eDelOtherAddCur 2");
+        //RAW_LOG(INFO, "childWR, hist is read, eDelOtherAddCur 2");
         break; 
       default:
         break;
@@ -1400,7 +1400,7 @@ stateTransferWRR(const NodeRelation relation,
         // since only one record exists in access history, add current
         nextState = curIsWrite? eNonSiblingRW : eWRR;
         action = curIsWrite? eDelOtherAddCur : eNoAction;
-        RAW_LOG(INFO, "WRR, hist is read, eDelOtherAddCur");
+        //RAW_LOG(INFO, "WRR, hist is read, eDelOtherAddCur");
         break; 
       default:
         break;
