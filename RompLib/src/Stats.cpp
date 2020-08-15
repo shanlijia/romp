@@ -29,7 +29,6 @@ __attribute__((destructor))
 void finiStatsLog() {
   LOG(INFO) << "gNumCheckFuncCall#" << gNumCheckFuncCall.load();
   LOG(INFO) << "gNumBytesChecked#" << gNumBytesChecked.load();  
-  /*
   LOG(INFO) << "gNumAccessHistoryOverflow#" << gNumAccessHistoryOverflow.load(); 
   LOG(INFO) << "gNoModRWCon#" << gNoModRWCon.load();
   LOG(INFO) << "gNoModRRCon#" << gNoModRRCon.load();
@@ -40,7 +39,6 @@ void finiStatsLog() {
   LOG(INFO) << "gModRRConUF#" << gModRRConUF.load();
   LOG(INFO) << "gModNoConUS#" << gModNoConUS.load(); 
   LOG(INFO) << "gModNoConUF#" << gModNoConUF.load(); 
-  */
   
   /*
   for (const auto& data : gAccessHistoryMap) {

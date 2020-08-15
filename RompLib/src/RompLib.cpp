@@ -13,6 +13,7 @@
 #include "LockSet.h"
 #include "PfqRWLock.h"
 #include "ShadowMemory.h"
+#include "Stats.h"
 #include "TaskData.h"
 #include "ThreadData.h"
 
@@ -51,21 +52,53 @@ McsLock gMapLock;
  *  rolling back is required.
  */
 bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld, 
-		   PfqRWLock* lock, PfqRWLockNode& me) {
+		   PfqRWLock* lock, PfqRWLockNode& me,
+		   uint32_t ticketNum, bool& rrContend, 
+		   bool& modIntent, bool& upgradeSuccess) {
+  modIntent = true;
   if (writeLockHeld) {
     // the writer lock is already held
     return false;
   }
-  auto res = pfqUpgrade(lock, &me);
+  auto res = pfqUpgrade(lock, &me, ticketNum, rrContend);
   writeLockHeld = true;
   readLockHeld = false;
   if (res == eAtomicUpgraded) {
+    upgradeSuccess = true;
     return false; 
   } else {
     return true;
   }
 }
 
+void recordHistoryMap(AccessHistory* accessHistory) {
+  McsNode mapNode;
+  mcsLock(&gMapLock, &mapNode);
+  gAccessHistoryMap[(void*)accessHistory]++;
+  mcsUnlock(&gMapLock, &mapNode);
+}
+
+enum CounterType getCounterType(bool readWriteContend, bool readReadContend, 
+		                  bool upgradeSuccess, bool modIntent) {
+  if (!modIntent) {
+    if (readWriteContend) {
+      return eNoModRWCon;
+    } else if (readReadContend) {
+      return eNoModRRCon;
+    } else {
+      return eNoModNoCon;
+    }
+  } else {
+    if (readWriteContend) {
+      return upgradeSuccess? eModRWConUS : eModRWConUF;
+    } else if (readReadContend) {
+      return upgradeSuccess? eModRRConUS : eModRRConUF;
+    } else {
+      return upgradeSuccess? eModNoConUS : eModNoConUF;
+    }
+  }
+  return eUndefCounter;
+}
 
 /*
  * Driver function to do data race checking and access history management.
@@ -74,12 +107,25 @@ bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld,
  */
 void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel, 
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
+  /* starts stats related */
   gNumCheckFuncCall++; // increment the check func call counter
+  accessHistory->numAccess++;
+  uint32_t ticketNum = 0;
+  auto counterType = eUndefCounter;    
+  auto modIntent = false;
+  auto readWriteContend = false;
+  auto readReadContend = false; 
+  auto upgradeSuccess = false;
+  /* ends stats related */
+
   auto writeLockHeld = false;
   auto readLockHeld = false;  
   auto lockPtr = &(accessHistory->getLock());  
   PfqRWLockNode me;
-  pfqRWLockReadLock(lockPtr); // acquire reader lock
+  
+  if (pfqRWLockReadLock(lockPtr, ticketNum)) {  
+    readWriteContend = true;  
+  } // acquire reader lock
   readLockHeld = true;
 
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
@@ -94,11 +140,15 @@ rollback:
   }
   if (records == nullptr) {
     // need to write 
-    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me,
+	              ticketNum, readReadContend, modIntent, upgradeSuccess)) {
       goto rollback;
     } else {
       records = accessHistory->getRecords();
     }
+  }
+  if (records->size() > REC_NUM_THRESHOLD) {
+    gNumAccessHistoryOverflow++; 
   }
   if (accessHistory->dataRaceFound()) {
     /* 
@@ -109,7 +159,8 @@ rollback:
      * to this memory location does not go through data race checking.
      */
     if (!records->empty()) {  
-      if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+      if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me, ticketNum,
+			readReadContend, modIntent, upgradeSuccess)) {
         goto rollback;
       }  else {
         records->clear();
@@ -122,14 +173,16 @@ rollback:
      * The memory slot is recycled because of the end of explicit task. 
      * reset the memory state flag and clear the access records.
      */
-    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me, ticketNum,
+	            readReadContend, modIntent, upgradeSuccess)) {
       goto rollback;
     }
      accessHistory->clearFlags();
      records->clear();
   }
   if (records->empty()) {
-    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+    if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me, ticketNum,
+	            readReadContend, modIntent, upgradeSuccess)) {
       goto rollback;
     }
     if (checkInfo.isWrite) {
@@ -173,7 +226,8 @@ rollback:
 	accessHistory->setState(nextState);
         modifyAccessHistory(action, records, it, curRecord); 
       } else {
-        if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me)) {
+        if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me, ticketNum,
+	            readReadContend, modIntent, upgradeSuccess)) {
           // have to go back to roll back state
           goto rollback;
 	} else {
@@ -187,8 +241,52 @@ check_finish:
   if (writeLockHeld) {
     pfqRWLockWriteUnlock(lockPtr, &me);
   } else if (readLockHeld) {
-    pfqRWLockReadUnlock(lockPtr); 
+    pfqRWLockReadUnlock(lockPtr, ticketNum); 
   }
+  counterType = getCounterType(readWriteContend, readReadContend,
+		               upgradeSuccess, modIntent); 
+  switch(counterType) {
+    case eNoModRWCon:
+      gNoModRWCon++;
+      accessHistory->noModRWCon++;       
+      break;
+    case eNoModRRCon:
+      gNoModRRCon++;
+      accessHistory->noModRRCon++;
+      break;
+    case eNoModNoCon:
+      gNoModNoCon++;
+      accessHistory->noModNoCon++;
+      break;
+    case eModRWConUS:
+      gModRWConUS++;
+      accessHistory->modRWConUS++;
+      break;
+    case eModRWConUF:
+      gModRWConUF++;
+      accessHistory->modRWConUF++;
+      break;
+    case eModRRConUS:
+      gModRRConUS++;
+      accessHistory->modRRConUS++;
+      break;
+    case eModRRConUF:
+      gModRRConUF++;
+      accessHistory->modRRConUF++; 
+      break;
+    case eModNoConUS:
+      gModNoConUS++;
+      accessHistory->modNoConUS++;  
+      break;
+    case eModNoConUF:
+      gModNoConUF++;
+      accessHistory->modNoConUF++;
+      break;
+    default:
+      RAW_LOG(FATAL, "unexpected case");
+      break;
+  } 
+  recordHistoryMap(accessHistory);
 }
 
 extern "C" {
