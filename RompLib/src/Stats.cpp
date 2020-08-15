@@ -6,15 +6,14 @@
 #include <stdlib.h>
 #include <unordered_map>
 
-#include <papi_sde_interface.h>
-
 #include "AccessHistory.h"
 
 namespace romp {
 
 void* sdeCounters[NUM_SDE_COUNTER];
 
-std::atomic_long gNumCheckAccessCall;//total number of calls to access checking
+std::atomic_long gNumCheckFuncCall;
+std::atomic_long gNumBytesChecked;
 std::atomic_long gNumAccessHistoryOverflow;
 std::atomic_long gNoModRWCon;
 std::atomic_long gNoModRRCon;
@@ -28,25 +27,10 @@ std::atomic_long gModNoConUF;
 
 std::unordered_map<void*, int> gAccessHistoryMap;
 
-static const char * eventNames[NUM_SDE_COUNTER] = {
-  "REC_NUM_CNT",
-  "MOD_NUM_CNT",
-};
-
-__attribute__((constructor))
-void initPapiSde() {
-  papi_handle_t sdeHandle;
-  sdeHandle = papi_sde_init("romp");
-  for (int i = 0; i < NUM_SDE_COUNTER; ++i) {
-    papi_sde_create_counter(sdeHandle, eventNames[i], PAPI_SDE_DELTA, 
-		    &sdeCounters[i]);
-  }
-  LOG(INFO) << "papi sde events initialized";
-}
-
 __attribute__((destructor))
 void finiStatsLog() {
-  LOG(INFO) << "gNumCheckAccessCall#" << gNumCheckAccessCall.load();   
+  LOG(INFO) << "gNumCheckFuncCall#" << gNumCheckFuncCall.load();
+  LOG(INFO) << "gNumBytesChecked#" << gNumBytesChecked.load();  
   LOG(INFO) << "gNumAccessHistoryOverflow#" << gNumAccessHistoryOverflow.load(); 
   LOG(INFO) << "gNoModRWCon#" << gNoModRWCon.load();
   LOG(INFO) << "gNoModRRCon#" << gNoModRRCon.load();
