@@ -140,5 +140,4 @@ void pfqRWLockWriteLock(PfqRWLock *l, PfqRWLockNode *me);
 void pfqRWLockWriteUnlock(PfqRWLock *l, PfqRWLockNode *me);
 
 UpgradeResult pfqUpgrade(PfqRWLock* l, PfqRWLockNode* me);
-
 #endif
