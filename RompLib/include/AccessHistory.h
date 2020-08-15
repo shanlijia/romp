@@ -49,6 +49,16 @@ public:
   AccessHistoryState getState() const;   
   void setState(AccessHistoryState state);
   uint64_t getRawState() const; 
+  std::atomic_uint64_t noModRWCon;
+  std::atomic_uint64_t noModRRCon;
+  std::atomic_uint64_t noModNoCon;
+  std::atomic_uint64_t modRWConUS;
+  std::atomic_uint64_t modRWConUF;
+  std::atomic_uint64_t modRRConUS;
+  std::atomic_uint64_t modRRConUF;
+  std::atomic_uint64_t modNoConUS;
+  std::atomic_uint64_t modNoConUF;  
+  std::atomic_uint64_t numAccess;           
 private:
   void _initRecords();
 private:
