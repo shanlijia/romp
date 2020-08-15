@@ -74,6 +74,7 @@ bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld,
  */
 void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel, 
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
+  gNumCheckFuncCall++; // increment the check func call counter
   auto writeLockHeld = false;
   auto readLockHeld = false;  
   auto lockPtr = &(accessHistory->getLock());  
@@ -261,7 +262,7 @@ void checkAccess(void* address,
           dataSharingType);
   for (uint64_t i = 0; i < bytesAccessed; ++i) {
     auto curAddress = reinterpret_cast<uint64_t>(address) + i;      
-    
+    gNumBytesChecked++; // increment the bytes checked counter
     if (isDupMemAccess(curTaskData, isWrite, address)) {
       // if the byte is a duplicate access
       continue;

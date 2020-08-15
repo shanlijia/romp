@@ -120,21 +120,29 @@ pfqRWLockInit(PfqRWLock *l)
   l->whead = MCS_NIL;
 }
 
-void
-pfqRWLockReadLock(PfqRWLock *l)
+bool
+pfqRWLockReadLock(PfqRWLock *l, uint32_t& ticketNum)
 {
   uint32_t ticket = std::atomic_fetch_add_explicit(&l->rin, READER_INCREMENT, std::memory_order_acq_rel);
-
+  ticketNum = ticket & TICKET_MASK;
+  bool writerPresent = false;
   if (ticket & WRITER_PRESENT) {
     uint32_t phase = ticket & PHASE_BIT;
+    writerPresent = true;
     while (std::atomic_load_explicit(&l->writer_blocking_readers[phase].bit, std::memory_order_acquire));
   }
+  return writerPresent;
 }
 
-
-void
-pfqRWLockReadUnlock(PfqRWLock *l)
+bool
+pfqRWLockReadUnlock(PfqRWLock *l, uint32_t ticketNum)
 {
+  auto ticketIn = std::atomic_load_explicit(&l->rin, std::memory_order_acquire);
+  ticketIn &= TICKET_MASK;
+  auto readContention = true;
+  if (ticketIn == (ticketNum + READER_INCREMENT)) {
+    readContention = false;
+  }
   uint32_t ticket = std::atomic_fetch_add_explicit(&l->rout, READER_INCREMENT, std::memory_order_acq_rel);
 
   if (ticket & WRITER_PRESENT) {
@@ -144,6 +152,7 @@ pfqRWLockReadUnlock(PfqRWLock *l)
     if (ticket == std::atomic_load_explicit(&l->last, std::memory_order_acquire))
       std::atomic_store_explicit(&l->whead->blocked, false, std::memory_order_release);
   }
+  return readContention;  
 }
 
 /*
@@ -249,8 +258,9 @@ pfqRWLockWriteUnlock(PfqRWLock *l, PfqRWLockNode *me)
   mcsUnlock(&l->wtail, me);
 }
 
-UpgradeResult pfqUpgrade(PfqRWLock* l, PfqRWLockNode* me) {
-  pfqRWLockReadUnlock(l);
+UpgradeResult pfqUpgrade(PfqRWLock* l, PfqRWLockNode* me,
+		        uint32_t ticketNum, bool& readContend) {
+  readContend = pfqRWLockReadUnlock(l, ticketNum);
   if (mcsTryLock(&l->wtail, me)) {
     writeLockHelper(l, me);
     return eAtomicUpgraded;
