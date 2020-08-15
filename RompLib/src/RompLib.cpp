@@ -56,7 +56,6 @@ bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld,
  */
 void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel, 
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
-  RAW_LOG(INFO, "checkDataRace %lx", accessHistory);
   auto writeLockHeld = false;
   auto readLockHeld = false;  
   auto lockPtr = &(accessHistory->getLock());  
@@ -67,7 +66,6 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
   auto curRecord = Record(checkInfo.isWrite, curLabel, curLockSet, 
           checkInfo.taskPtr, checkInfo.instnAddr, checkInfo.hwLock);
 rollback:
-  RAW_LOG(INFO, "roll back %lx", accessHistory);
   auto records = accessHistory->peekRecords();
   auto dataSharingType = checkInfo.dataSharingType;
 

@@ -124,14 +124,11 @@ void
 pfqRWLockReadLock(PfqRWLock *l)
 {
   uint32_t ticket = std::atomic_fetch_add_explicit(&l->rin, READER_INCREMENT, std::memory_order_acq_rel);
-  RAW_LOG(INFO, "read lock %lx, ticket: %d", l, ticket);
 
   if (ticket & WRITER_PRESENT) {
     uint32_t phase = ticket & PHASE_BIT;
-    RAW_LOG(INFO, "read lock %lx, writer present, phase: %d", l, phase);
     while (std::atomic_load_explicit(&l->writer_blocking_readers[phase].bit, std::memory_order_acquire));
   }
-  RAW_LOG(INFO, "read lock %lx held", l);
 }
 
 
@@ -147,7 +144,6 @@ pfqRWLockReadUnlock(PfqRWLock *l)
     if (ticket == std::atomic_load_explicit(&l->last, std::memory_order_acquire))
       std::atomic_store_explicit(&l->whead->blocked, false, std::memory_order_release);
   }
-  RAW_LOG(INFO, "read lock %lx released", l);
 }
 
 /*
@@ -157,7 +153,6 @@ void inline writeLockHelper(PfqRWLock* l, PfqRWLockNode* me) {
   //--------------------------------------------------------------------
   // this may be false when at the head of the mcs queue
   //--------------------------------------------------------------------
-  RAW_LOG(INFO, "write lock helper called: %lx", l);
   std::atomic_store_explicit(&me->blocked, true, std::memory_order_relaxed);
 
   //--------------------------------------------------------------------
@@ -216,7 +211,6 @@ pfqRWLockWriteLock(PfqRWLock *l, PfqRWLockNode *me)
   //--------------------------------------------------------------------
   mcsLock(&l->wtail, me);
   writeLockHelper(l, me);
-  RAW_LOG(INFO, "writeLock %lx held", l);
 }
 
 
@@ -227,7 +221,6 @@ pfqRWLockWriteUnlock(PfqRWLock *l, PfqRWLockNode *me)
   // toggle phase and clear WRITER_PRESENT in rin. No synch issues
   // since there are no concurrent updates of the low-order byte
   //--------------------------------------------------------------------
-  RAW_LOG(INFO, "write unlock %lx", l);
   unsigned char *lsb = LSB_PTR(&l->rin);
   uint32_t phase = *lsb & PHASE_BIT;
   *lsb ^= WRITER_MASK;
@@ -254,19 +247,16 @@ pfqRWLockWriteUnlock(PfqRWLock *l, PfqRWLockNode *me)
   // pass writer lock to next writer
   //--------------------------------------------------------------------
   mcsUnlock(&l->wtail, me);
-  RAW_LOG(INFO, "writeLock %lx released", l);
 }
 
 UpgradeResult pfqUpgrade(PfqRWLock* l, PfqRWLockNode* me) {
   pfqRWLockReadUnlock(l);
   if (mcsTryLock(&l->wtail, me)) {
     writeLockHelper(l, me);
-    RAW_LOG(INFO, "ATOMIC upgraded %lx to writer", l);
     return eAtomicUpgraded;
   } else {
     mcsLock(&l->wtail, me);
     writeLockHelper(l, me); 
-    RAW_LOG(INFO, "NON-ATOMIC upgraded %lx to writer", l);
     return eNonAtomicUpgraded;
   }
 }
