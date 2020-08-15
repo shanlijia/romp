@@ -10,8 +10,6 @@
 
 namespace romp {
 
-void* sdeCounters[NUM_SDE_COUNTER];
-
 std::atomic_long gNumCheckFuncCall;
 std::atomic_long gNumBytesChecked;
 std::atomic_long gNumAccessHistoryOverflow;

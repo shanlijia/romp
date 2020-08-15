@@ -23,7 +23,25 @@ namespace romp {
 using LabelPtr = std::shared_ptr<Label>;
 using LockSetPtr = std::shared_ptr<LockSet>;
 
+
 ShadowMemory<AccessHistory> shadowMemory;
+
+extern std::atomic_long gNumCheckFuncCall;
+extern std::atomic_long gNumBytesChecked;
+extern std::atomic_long gNumAccessHistoryOverflow;
+extern std::atomic_long gNoModRWCon;
+extern std::atomic_long gNoModRRCon;
+extern std::atomic_long gNoModNoCon;
+extern std::atomic_long gModRWConUS;
+extern std::atomic_long gModRWConUF;
+extern std::atomic_long gModRRConUS;
+extern std::atomic_long gModRRConUF;
+extern std::atomic_long gModNoConUS;
+extern std::atomic_long gModNoConUF;
+
+extern std::unordered_map<void*, int> gAccessHistoryMap;
+
+McsLock gMapLock;
 /*
  *  This helper function is called when checkAccess() determines that 
  *  there exists intent to modify access history. It return true if 
