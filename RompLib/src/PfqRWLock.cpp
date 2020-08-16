@@ -158,7 +158,7 @@ pfqRWLockReadUnlock(PfqRWLock *l, uint32_t ticketNum)
 /*
  * Write lock helper assumes that the wtail lock has been acquired 
  */
-void inline writeLockHelper(PfqRWLock* l, PfqRWLockNode* me) {
+void inline writeLockHelper(PfqRWLock* l, PfqRWLockNode* me, bool& waitForDrain) {
   //--------------------------------------------------------------------
   // this may be false when at the head of the mcs queue
   //--------------------------------------------------------------------
@@ -209,6 +209,7 @@ void inline writeLockHelper(PfqRWLock* l, PfqRWLockNode* me) {
     // store to writer_blocking headers bit must complete before notifying
     // readers of writer
     //--------------------------------------------------------------------------
+    waitForDrain = true;
   }
 }
 
@@ -218,8 +219,9 @@ pfqRWLockWriteLock(PfqRWLock *l, PfqRWLockNode *me)
   //--------------------------------------------------------------------
   // use MCS lock to enforce mutual exclusion with other writers
   //--------------------------------------------------------------------
+  auto waitForDrain = false;
   mcsLock(&l->wtail, me);
-  writeLockHelper(l, me);
+  writeLockHelper(l, me, waitForDrain);
 }
 
 
@@ -259,14 +261,14 @@ pfqRWLockWriteUnlock(PfqRWLock *l, PfqRWLockNode *me)
 }
 
 UpgradeResult pfqUpgrade(PfqRWLock* l, PfqRWLockNode* me,
-		        uint32_t ticketNum, bool& readContend) {
+		        uint32_t ticketNum, bool& readContend, bool& waitForDrain) {
   readContend = pfqRWLockReadUnlock(l, ticketNum);
-  if (mcsTryLock(&l->wtail, me)) {
-    writeLockHelper(l, me);
+  if (mcsTryLock(&l->wtail, me)) { // no other writer present
+    writeLockHelper(l, me, waitForDrain);
     return eAtomicUpgraded;
-  } else {
+  } else { // writer writer contention
     mcsLock(&l->wtail, me);
-    writeLockHelper(l, me); 
+    writeLockHelper(l, me, waitForDrain); 
     return eNonAtomicUpgraded;
   }
 }

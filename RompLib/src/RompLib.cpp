@@ -27,22 +27,12 @@ using LockSetPtr = std::shared_ptr<LockSet>;
 
 ShadowMemory<AccessHistory> shadowMemory;
 
+
+extern std::atomic_long statCounters[COUNTER_NUM];
 extern std::atomic_long gNumCheckFuncCall;
 extern std::atomic_long gNumBytesChecked;
 extern std::atomic_long gNumAccessHistoryOverflow;
-extern std::atomic_long gNoModRWCon;
-extern std::atomic_long gNoModRRCon;
-extern std::atomic_long gNoModNoCon;
-extern std::atomic_long gModRWConUS;
-extern std::atomic_long gModRWConUF;
-extern std::atomic_long gModRRConUS;
-extern std::atomic_long gModRRConUF;
-extern std::atomic_long gModNoConUS;
-extern std::atomic_long gModNoConUF;
 
-extern std::unordered_map<void*, int> gAccessHistoryMap;
-
-McsLock gMapLock;
 /*
  *  This helper function is called when checkAccess() determines that 
  *  there exists intent to modify access history. It return true if 
@@ -54,13 +44,13 @@ McsLock gMapLock;
 bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld, 
 		   PfqRWLock* lock, PfqRWLockNode& me,
 		   uint32_t ticketNum, bool& rrContend, 
-		   bool& modIntent, bool& upgradeSuccess) {
+		   bool& modIntent, bool& upgradeSuccess, bool& waitForDrain) {
   modIntent = true;
   if (writeLockHeld) {
     // the writer lock is already held
     return false;
   }
-  auto res = pfqUpgrade(lock, &me, ticketNum, rrContend);
+  auto res = pfqUpgrade(lock, &me, ticketNum, rrContend, waitForDrain);
   writeLockHeld = true;
   readLockHeld = false;
   if (res == eAtomicUpgraded) {
@@ -71,15 +61,18 @@ bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld,
   }
 }
 
-void recordHistoryMap(AccessHistory* accessHistory) {
-  McsNode mapNode;
-  mcsLock(&gMapLock, &mapNode);
-  gAccessHistoryMap[(void*)accessHistory]++;
-  mcsUnlock(&gMapLock, &mapNode);
-}
 
+/*
+ * readWriteContend refers to reader-writer contention when acquiring reader lock
+ * readReadContend refers to readers contention when acquiring reader lock
+ * upgradeSuccess = true means that no writer-writer contention when acquiring writer lock
+ * upgradeSuccess = false means that there exists another writer when acquiring writer lock
+ * waitForDrain = true means that there exists readers writer contention when acquiring 
+ * writer lock 
+ */
 enum CounterType getCounterType(bool readWriteContend, bool readReadContend, 
-		                  bool upgradeSuccess, bool modIntent) {
+		                bool upgradeSuccess, bool modIntent,
+				bool waitForDrain) {
   if (!modIntent) {
     if (readWriteContend) {
       return eNoModRWCon;
@@ -89,12 +82,33 @@ enum CounterType getCounterType(bool readWriteContend, bool readReadContend,
       return eNoModNoCon;
     }
   } else {
-    if (readWriteContend) {
-      return upgradeSuccess? eModRWConUS : eModRWConUF;
-    } else if (readReadContend) {
-      return upgradeSuccess? eModRRConUS : eModRRConUF;
-    } else {
-      return upgradeSuccess? eModNoConUS : eModNoConUF;
+    // the checking function has the intention to modify the access history
+    // preprocess the contention result for acquiring reader lock
+    auto noReadLockCon = !readWriteContend && !readReadContend;
+    if (readWriteContend && upgradeSuccess && !waitForDrain) {
+      return eModRWConUSNoCon;
+    } else if (readWriteContend && upgradeSuccess && waitForDrain) {
+      return eModRWConUSWRCon;    
+    } else if (readWriteContend && !upgradeSuccess && !waitForDrain) {
+      return eModRWConUFNoCon;
+    } else if (readWriteContend && !upgradeSuccess && waitForDrain) {
+      return eModRWConUFWRCon; 
+    } else if (readReadContend && upgradeSuccess && !waitForDrain) {
+      return eModRRConUSNoCon;
+    } else if (readReadContend && upgradeSuccess && waitForDrain) {
+      return eModRRConUSWRCon;    
+    } else if (readReadContend && !upgradeSuccess && !waitForDrain) {
+      return eModRRConUFNoCon;
+    } else if (readReadContend && !upgradeSuccess && waitForDrain) {
+      return eModRRConUFWRCon; 
+    } else if (noReadLockCon && upgradeSuccess && !waitForDrain) {
+      return eModNoConUSNoCon;
+    } else if (noReadLockCon && upgradeSuccess && waitForDrain) {
+      return eModNoConUSWRCon;    
+    } else if (noReadLockCon && !upgradeSuccess && !waitForDrain) {
+      return eModNoConUFNoCon;
+    } else if (noReadLockCon && !upgradeSuccess && waitForDrain) {
+      return eModNoConUFWRCon; 
     }
   }
   return eUndefCounter;
@@ -109,13 +123,13 @@ void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel,
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
   /* starts stats related */
   gNumCheckFuncCall++; // increment the check func call counter
-  accessHistory->numAccess++;
   uint32_t ticketNum = 0;
   auto counterType = eUndefCounter;    
   auto modIntent = false;
-  auto readWriteContend = false;
-  auto readReadContend = false; 
+  auto readWriteContend = false;// current read is contending with another write
+  auto readReadContend = false;  
   auto upgradeSuccess = false;
+  auto waitForDrain = false; // the writer waits for ongoing readers to finish
   /* ends stats related */
 
   auto writeLockHeld = false;
@@ -141,7 +155,8 @@ rollback:
   if (records == nullptr) {
     // need to write 
     if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me,
-	              ticketNum, readReadContend, modIntent, upgradeSuccess)) {
+	              ticketNum, readReadContend, modIntent, 
+		      upgradeSuccess, waitForDrain)) {
       goto rollback;
     } else {
       records = accessHistory->getRecords();
@@ -160,7 +175,8 @@ rollback:
      */
     if (!records->empty()) {  
       if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me, ticketNum,
-			readReadContend, modIntent, upgradeSuccess)) {
+			readReadContend, modIntent, upgradeSuccess, 
+			waitForDrain)) {
         goto rollback;
       }  else {
         records->clear();
@@ -174,7 +190,7 @@ rollback:
      * reset the memory state flag and clear the access records.
      */
     if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me, ticketNum,
-	            readReadContend, modIntent, upgradeSuccess)) {
+	            readReadContend, modIntent, upgradeSuccess, waitForDrain)) {
       goto rollback;
     }
      accessHistory->clearFlags();
@@ -182,7 +198,7 @@ rollback:
   }
   if (records->empty()) {
     if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me, ticketNum,
-	            readReadContend, modIntent, upgradeSuccess)) {
+	            readReadContend, modIntent, upgradeSuccess, waitForDrain)) {
       goto rollback;
     }
     if (checkInfo.isWrite) {
@@ -227,7 +243,7 @@ rollback:
         modifyAccessHistory(action, records, it, curRecord); 
       } else {
         if (upgradeHelper(writeLockHeld, readLockHeld, lockPtr, me, ticketNum,
-	            readReadContend, modIntent, upgradeSuccess)) {
+	            readReadContend, modIntent, upgradeSuccess, waitForDrain)) {
           // have to go back to roll back state
           goto rollback;
 	} else {
@@ -244,49 +260,8 @@ check_finish:
     pfqRWLockReadUnlock(lockPtr, ticketNum); 
   }
   counterType = getCounterType(readWriteContend, readReadContend,
-		               upgradeSuccess, modIntent); 
-  switch(counterType) {
-    case eNoModRWCon:
-      gNoModRWCon++;
-      accessHistory->noModRWCon++;       
-      break;
-    case eNoModRRCon:
-      gNoModRRCon++;
-      accessHistory->noModRRCon++;
-      break;
-    case eNoModNoCon:
-      gNoModNoCon++;
-      accessHistory->noModNoCon++;
-      break;
-    case eModRWConUS:
-      gModRWConUS++;
-      accessHistory->modRWConUS++;
-      break;
-    case eModRWConUF:
-      gModRWConUF++;
-      accessHistory->modRWConUF++;
-      break;
-    case eModRRConUS:
-      gModRRConUS++;
-      accessHistory->modRRConUS++;
-      break;
-    case eModRRConUF:
-      gModRRConUF++;
-      accessHistory->modRRConUF++; 
-      break;
-    case eModNoConUS:
-      gModNoConUS++;
-      accessHistory->modNoConUS++;  
-      break;
-    case eModNoConUF:
-      gModNoConUF++;
-      accessHistory->modNoConUF++;
-      break;
-    default:
-      RAW_LOG(FATAL, "unexpected case");
-      break;
-  } 
-  recordHistoryMap(accessHistory);
+		               upgradeSuccess, modIntent, waitForDrain); 
+  statCounters[(int)counterType]++; 
 }
 
 extern "C" {
@@ -361,7 +336,7 @@ void checkAccess(void* address,
   for (uint64_t i = 0; i < bytesAccessed; ++i) {
     auto curAddress = reinterpret_cast<uint64_t>(address) + i;      
     gNumBytesChecked++; // increment the bytes checked counter
-    if (isDupMemAccess(curTaskData, isWrite, address)) {
+    if (isDupMemAccess(curTaskData, isWrite, (void*)curAddress)) {
       // if the byte is a duplicate access
       continue;
     }
