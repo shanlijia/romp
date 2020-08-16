@@ -38,12 +38,28 @@ std::atomic_long gNumAccessHistoryOverflow;
 
 __attribute__((destructor))
 void finiStatsLog() {
-  LOG(INFO) << "gNumCheckFuncCall#" << gNumCheckFuncCall.load();
-  LOG(INFO) << "gNumBytesChecked#" << gNumBytesChecked.load();  
-  LOG(INFO) << "gNumAccessHistoryOverflow#" << gNumAccessHistoryOverflow.load(); 
+  auto checkFunCall = gNumCheckFuncCall.load();
+  auto bytesChecked = gNumBytesChecked.load();
+  auto historyOverflow = gNumAccessHistoryOverflow.load();
+  LOG(INFO) << "check-func-call#" << checkFunCall;
+  LOG(INFO) << "bytes-checked#" << bytesChecked;
+  LOG(INFO) << "history-overflow#" << historyOverflow;
   for (int i = 1; i < COUNTER_NUM; ++i) {
     LOG(INFO) << counterNames[i] << statCounters[i].load();
   }
+  auto checkRatio = (float)checkFunCall / (float)bytesChecked;
+  auto noModCount = 0;
+  for (int i = 1; i <=3; ++i) {
+    noModCount += statCounters[i].load(); 
+  }
+  auto modRatio = (float)(checkFunCall - noModCount) / (float)(checkFunCall);
+  LOG(INFO) << "check-ratio#" << checkRatio;
+  LOG(INFO) << "mod-ratio#" << modRatio;
+  auto readOnlyNoConRatio = (float)(statCounters[eNoModNoCon].load()) / checkFunCall;
+  auto modNoConRatio = (float)(statCounters[eModNoConUSNoCon].load()) / checkFunCall;
+  LOG(INFO) << "readonly-no-con-ratio#" << readOnlyNoConRatio;
+  LOG(INFO) << "mod-no-con-ratio#" << modNoConRatio;
+  
 }	
 
 }
