@@ -54,7 +54,7 @@
 #define M_PI_2   1.57079632679489661923  /* pi/2 */
 #endif
 
-#define NUM_ARGS				2
+#define NUM_ARGS				3
 #define NUM_TIMERS			1
 #define DEFAULT_NPARTS 	8192
 #define DEFAULT_NSTEPS 	10
@@ -211,7 +211,7 @@ int main (int argc, char **argv) {
   vnd_t *accel;
   double potential, kinetic, E0;
   int i;
-	int NUMTHREADS;
+	int NUMTHREADS = omp_get_max_threads();
 	double total_time;
 	char *PARAM_NAMES[NUM_ARGS] = {"Nparts", "Nsteps"};
 	char *TIMERS_NAMES[NUM_TIMERS] = {"Total_time" };
@@ -226,6 +226,8 @@ int main (int argc, char **argv) {
 
 	NPARTS = OSCR_getarg_int(1);
   NSTEPS = OSCR_getarg_int(2);
+  NUMTHREADS = OSCR_getarg_int(3);
+  omp_set_num_threads(NUMTHREADS);
   /* Default: DEFAULT_NPARTS, DEFAULT_NSTEPS */
 
 	/* Memory allocation */

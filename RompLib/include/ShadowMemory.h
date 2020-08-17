@@ -26,7 +26,7 @@ public:
   ShadowMemory(const uint64_t l1PageTableBits = 20, 
                const uint64_t l2PageTableBits = 12,
                const uint64_t numMemAddrBits = 48,
-               Granularity granularity = eByteLevel);
+               Granularity granularity = eWordLevel);
 
   ~ShadowMemory();
 public:

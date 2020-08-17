@@ -333,8 +333,8 @@ void checkAccess(void* address,
   CheckInfo checkInfo(allTaskInfo, bytesAccessed, instnAddr, 
           static_cast<void*>(curTaskData), taskType, isWrite, hwLock, 
           dataSharingType);
-  for (uint64_t i = 0; i < bytesAccessed; ++i) {
-    auto curAddress = reinterpret_cast<uint64_t>(address) + i;      
+  for (uint64_t i = 0; i < bytesAccessed / 4; ++i) {
+    auto curAddress = reinterpret_cast<uint64_t>(address) + i * 4;      
     gNumBytesChecked++; // increment the bytes checked counter
     if (isDupMemAccess(curTaskData, isWrite, (void*)curAddress)) {
       // if the byte is a duplicate access
