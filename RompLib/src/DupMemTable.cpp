@@ -94,6 +94,7 @@ void DupMemTable::put(uint64_t addr, bool isWrite) {
     element.addr = addr;
     element.isWrite = isWrite;
     _table[firstEmptyIndex] = element;
+    swing(firstEmptyIndex);
     _elemNum++;
   }	  
 }
