@@ -1,6 +1,5 @@
 #pragma once
-#include <memory>
-#include <unordered_map>
+#include <cstdint>
 
 namespace romp {
 
@@ -10,51 +9,42 @@ namespace romp {
  * the same task in the same serial code segment. For example,
  * if an implicit task accesses a memory location X multiple 
  * times, these X accesses are serialized. 
- * The DupMemTable is implemented as an LRU cache.
+ * The DupMemTable is implemented as an LRU cache. 
+ * We use an array to store elements. We define the first element 
+ * as the most recently accessed. When updating element, swap the 
+ * element with the first element. We choose the last element as 
+ * the victim.
  */
+#define DUP_TABLE_CAPACITY 8
 
-typedef struct HashNode {
-  std::shared_ptr<HashNode> prev;
-  std::shared_ptr<HashNode> next;
-  uint64_t key;
-  bool value;  
-  HashNode(uint64_t key, bool value) {
-    prev = nullptr;  
-    next = nullptr;
-    key = key;
-    value = value;
-  }	  
-} HashNode;
 
-using HashNodePtr = std::shared_ptr<HashNode>;
+typedef struct DupElement {
+  uint64_t addr;
+  bool isWrite;
+  DupElement() {
+    addr = 0;
+    isWrite = false;
+  }
+} DupElement;
 
 class DupMemTable {
 public:
-  DupMemTable(uint32_t capacity) { 
-    _taskId = 0; 
-    _capacity = capacity;
-    _head = nullptr; 
-    _tail = nullptr;
-  }
   DupMemTable() { 
     _taskId = 0; 
-    _capacity = 32; // set default memory 
-    _head = nullptr;
-    _tail = nullptr; 
+    _elemNum = 0;
   }
   bool isDupAccess(void* address, bool isWrite, uint64_t taskId);
-  void clear(); 
 private:
-  void put(uint64_t key, bool value);
-  bool get(uint64_t key, bool& value);
-  void removeNode(HashNodePtr node);
-  void addNode(HashNodePtr node);
-private:
-  uint32_t  _capacity;
-  std::unordered_map<uint64_t, HashNodePtr> _table;    
+  inline bool isFull();
+  uint8_t _elemNum;
+  void clear();
+  void swing(int index);
+  bool get(uint64_t addr, bool& recIsWrite);
+  void put(uint64_t addr, bool isWrite);  
+  inline void reduceCounter(int index);
+  inline bool isEmpty(int index);
+  DupElement _table[DUP_TABLE_CAPACITY]; 
   uint64_t _taskId;
-  HashNodePtr _head;
-  HashNodePtr _tail;
 };
 
 

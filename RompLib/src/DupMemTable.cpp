@@ -1,65 +1,101 @@
 #include "DupMemTable.h"
 
+#include <climits>
 #include <glog/logging.h>
 #include <glog/raw_logging.h>
 
 namespace romp {
 
-void DupMemTable::removeNode(HashNodePtr node) {
-  if (node->prev != nullptr) {
-    node->prev->next = node->next;
-  } else {
-    _head = node->next;
-  }
-  if (node->next != nullptr) {
-    node->next->prev = node->prev;
-  } else {
-    _tail = node->prev;
-  }
-}	
 
-void DupMemTable::addNode(HashNodePtr node) {
-  if (_tail != nullptr) {
-    _tail->next = node;
-  }
-  node->prev = _tail;
-  node->next = nullptr;
-  _tail = node; 
-  if (_head == nullptr) {
-    _head = _tail;
-  }
+void DupMemTable::clear() {
+  DupElement empty;
+  for (int i = 0; i < DUP_TABLE_CAPACITY; ++i) {
+    _table[i] = empty;
+  }	  
 }
 
-void DupMemTable::put(uint64_t key, bool value) {
-  if (_table.find(key) != _table.end()) {
-    auto node = _table[key];
-    node->value = value;
-    removeNode(node); 
-    addNode(node);
-  } else {
-    if (_table.size() >= _capacity) {
-      _table.erase(_head->key); // remove the least touched node
-      removeNode(_head); 
-    }
-    auto node = std::make_shared<HashNode>(key, value);         
-    addNode(node);
-    _table[key] = node;
-  }
+inline bool DupMemTable::isEmpty(int index) {
+  // assume the integrity of the index
+  return _table[index].addr == 0;
 }
 
 /*
- * Return false if there is no node associated with 'key'
- * Return true if there is node and put the node value in 'value'
+ * Return true if a memory address that equals to addr is found.
+ * Return false if it is not found. Set recIsWrite if the records shows 
+ * that the access was a write.
  */
-bool DupMemTable::get(uint64_t key, bool& value) {
-  if (_table.find(key) == _table.end()) {
-    return false; 
+bool DupMemTable::get(uint64_t addr, bool& recIsWrite) {
+  for (int i = 0; i < DUP_TABLE_CAPACITY; ++i) {
+    auto elem = _table[i];
+    if (elem.addr == addr) { // found
+      recIsWrite = elem.isWrite;
+      return true; 
+    }
+  }	  
+  return false;
+}
+
+void DupMemTable::swing(int index) {
+  if (index = 0) {
+    return;
   }
-  auto node = _table[key];
-  value = node->value;
-  removeNode(node);
-  addNode(node);
-  return true;
+  auto tmp = _table[index];
+  for (int i = index - 1; i >= 0; i--) {
+    _table[i + 1] = _table[i];
+  }
+  _table[0] = tmp;
+}
+
+inline bool DupMemTable::isFull() {
+  return _elemNum == DUP_TABLE_CAPACITY;
+}
+/*
+ * Record the memory address in the table. First, check if there is already 
+ * an element having the same address. If not found, try finding  an empty slot 
+ * If no empty slot is found, remove the slot with smallest counter number. 
+ * If there is an empty slot, set the slot. And finally increment the counter.
+ */
+void DupMemTable::put(uint64_t addr, bool isWrite) {
+  if (isFull()) {
+   // we always replace once the table is full 
+    for (int i = 0; i < DUP_TABLE_CAPACITY; ++i) {
+      if (_table[i].addr == addr) {
+        _table[i].isWrite = isWrite;
+        swing(i); 
+	return;
+      }
+    }
+    // replace the victim
+    DupElement element;
+    element.addr = addr;
+    element.isWrite = isWrite;
+    _table[DUP_TABLE_CAPACITY - 1] = element; // swap out the victim
+  } else {
+    // scan to make sure there is not an existing element   
+    auto firstEmptyIndex = -1;
+    for (int i = 0; i < DUP_TABLE_CAPACITY; ++i) {
+      if (isEmpty(i)) { 
+        if (firstEmptyIndex == -1) {
+          firstEmptyIndex = i;
+	}
+        continue;
+      }
+      if (_table[i].addr == addr) { // found the element
+        _table[i].isWrite = isWrite;
+	swing(i);
+	return;
+      }
+    }
+    // not found the element and has empty slot
+    if (firstEmptyIndex < 0) {
+      RAW_LOG(FATAL, "index is < 0");
+    }
+    DupElement element;
+    element.addr = addr;
+    element.isWrite = isWrite;
+    _table[firstEmptyIndex] = element;
+    _elemNum++;
+  }	  
 }
 
 /*
@@ -67,7 +103,7 @@ bool DupMemTable::get(uint64_t key, bool& value) {
  * Return false if the memory access is considered as necessary for checking
  */
 bool DupMemTable::isDupAccess(void* address, bool isWrite, uint64_t taskId) {
-  auto addr = reinterpret_cast<uint64_t>(address);   
+  auto addr = reinterpret_cast<uint64_t>(address);
   if (taskId != _taskId) { // task has mutated  
     clear();
     _taskId = taskId;  // update the task id 
@@ -95,14 +131,5 @@ bool DupMemTable::isDupAccess(void* address, bool isWrite, uint64_t taskId) {
   }
 }
 
-void DupMemTable::clear() {
-  for (const auto& pair : _table) {
-    auto node = pair.second;
-    removeNode(node);
-  }
-  _tail = nullptr;
-  _head = nullptr;
-  _table.clear();
-}
 
 }
