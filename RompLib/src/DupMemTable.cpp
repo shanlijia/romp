@@ -46,9 +46,6 @@ void DupMemTable::swing(int index) {
   _table[0] = tmp;
 }
 
-inline bool DupMemTable::isFull() {
-  return _elemNum == DUP_TABLE_CAPACITY;
-}
 /*
  * Record the memory address in the table. First, check if there is already 
  * an element having the same address. If not found, try finding  an empty slot 
@@ -56,47 +53,29 @@ inline bool DupMemTable::isFull() {
  * If there is an empty slot, set the slot. And finally increment the counter.
  */
 void DupMemTable::put(uint64_t addr, bool isWrite) {
-  if (isFull()) {
-   // we always replace once the table is full 
-    for (int i = 0; i < DUP_TABLE_CAPACITY; ++i) {
-      if (_table[i].addr == addr) {
-        _table[i].isWrite = isWrite;
-        swing(i); 
-	return;
-      }
+  auto hasEmpty = false;
+  auto emptySlot = INT_MAX;
+  for (int i = 0; i < DUP_TABLE_CAPACITY; ++i) {
+    if (_table[i].addr == addr) {
+      _table[i].isWrite = isWrite;
+      swing(i);
+      return;
     }
-    // replace the victim
-    DupElement element;
-    element.addr = addr;
-    element.isWrite = isWrite;
+    if (isEmpty(i)) {
+      hasEmpty = true;
+      emptySlot = std::min(emptySlot, i);
+    }
+  }
+  DupElement element;
+  element.addr = addr;
+  element.isWrite = isWrite;
+  if (!hasEmpty) {
     _table[DUP_TABLE_CAPACITY - 1] = element; // swap out the victim
-  } else {
-    // scan to make sure there is not an existing element   
-    auto firstEmptyIndex = -1;
-    for (int i = 0; i < DUP_TABLE_CAPACITY; ++i) {
-      if (isEmpty(i)) { 
-        if (firstEmptyIndex == -1) {
-          firstEmptyIndex = i;
-	}
-        continue;
-      }
-      if (_table[i].addr == addr) { // found the element
-        _table[i].isWrite = isWrite;
-	swing(i);
-	return;
-      }
-    }
-    // not found the element and has empty slot
-    if (firstEmptyIndex < 0) {
-      RAW_LOG(FATAL, "index is < 0");
-    }
-    DupElement element;
-    element.addr = addr;
-    element.isWrite = isWrite;
-    _table[firstEmptyIndex] = element;
-    swing(firstEmptyIndex);
-    _elemNum++;
-  }	  
+    swing(DUP_TABLE_CAPACITY - 1);  
+  } else { // hasEmpty slot
+    _table[emptySlot] = element;
+    swing(emptySlot);    
+  }
 }
 
 /*

@@ -15,7 +15,7 @@ namespace romp {
  * element with the first element. We choose the last element as 
  * the victim.
  */
-#define DUP_TABLE_CAPACITY 8
+#define DUP_TABLE_CAPACITY 64
 
 
 typedef struct DupElement {
@@ -31,12 +31,9 @@ class DupMemTable {
 public:
   DupMemTable() { 
     _taskId = 0; 
-    _elemNum = 0;
   }
   bool isDupAccess(void* address, bool isWrite, uint64_t taskId);
 private:
-  inline bool isFull();
-  uint8_t _elemNum;
   void clear();
   void swing(int index);
   bool get(uint64_t addr, bool& recIsWrite);
