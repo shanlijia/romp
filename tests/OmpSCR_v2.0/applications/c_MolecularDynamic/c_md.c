@@ -159,7 +159,7 @@ void compute(int np, int nd, vnd_t *pos, vnd_t *vel,
   pot = 0.0;
   kin = 0.0;
   /* The computation of forces and energies is fully parallel. */
-#pragma omp parallel for default(shared) private(i, j, k, rij, d) reduction(+ : pot, kin) 
+#pragma omp parallel for default(shared) private(i, j, k, rij, d) reduction(+ : pot, kin) schedule(dynamic)
   for (i = 0; i < np; i++) {
     /* compute potential energy and forces */
     for (j = 0; j < nd; j++)
@@ -190,7 +190,7 @@ void update(int np, int nd, vnd_t *pos, vnd_t *vel, vnd_t *f, vnd_t *a, double m
   
   rmass = 1.0/mass;
   /* The time integration is fully parallel */
-#pragma omp parallel for default(shared) private(i, j) firstprivate(rmass, dt)
+#pragma omp parallel for default(shared) private(i, j) firstprivate(rmass, dt) schedule(dynamic)
   for (i = 0; i < np; i++) {
     for (j = 0; j < nd; j++) {
       pos[i][j] = pos[i][j] + vel[i][j]*dt + 0.5*dt*dt*a[i][j];
