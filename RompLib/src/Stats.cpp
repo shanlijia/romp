@@ -38,6 +38,7 @@ std::atomic_long gNumAccessHistoryOverflow;
 
 __attribute__((destructor))
 void finiStatsLog() {
+/*
   auto checkFunCall = gNumCheckFuncCall.load();
   auto bytesChecked = gNumBytesChecked.load();
   auto historyOverflow = gNumAccessHistoryOverflow.load();
@@ -59,7 +60,7 @@ void finiStatsLog() {
   auto modNoConRatio = (float)(statCounters[eModNoConUSNoCon].load()) / checkFunCall;
   LOG(INFO) << "readonly-no-con-ratio#" << readOnlyNoConRatio;
   LOG(INFO) << "mod-no-con-ratio#" << modNoConRatio;
-  
+ */ 
 }	
 
 }

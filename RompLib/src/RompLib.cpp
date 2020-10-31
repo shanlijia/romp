@@ -27,11 +27,12 @@ using LockSetPtr = std::shared_ptr<LockSet>;
 
 ShadowMemory<AccessHistory> shadowMemory;
 
-
+/*
 extern std::atomic_long statCounters[COUNTER_NUM];
 extern std::atomic_long gNumCheckFuncCall;
 extern std::atomic_long gNumBytesChecked;
 extern std::atomic_long gNumAccessHistoryOverflow;
+*/
 
 /*
  *  This helper function is called when checkAccess() determines that 
@@ -70,6 +71,7 @@ bool upgradeHelper(bool& writeLockHeld, bool& readLockHeld,
  * waitForDrain = true means that there exists readers writer contention when acquiring 
  * writer lock 
  */
+/*
 enum CounterType getCounterType(bool readWriteContend, bool readReadContend, 
 		                bool upgradeSuccess, bool modIntent,
 				bool waitForDrain) {
@@ -113,6 +115,7 @@ enum CounterType getCounterType(bool readWriteContend, bool readReadContend,
   }
   return eUndefCounter;
 }
+*/
 
 /*
  * Driver function to do data race checking and access history management.
@@ -122,7 +125,6 @@ enum CounterType getCounterType(bool readWriteContend, bool readReadContend,
 void checkDataRace(AccessHistory* accessHistory, const LabelPtr& curLabel, 
                    const LockSetPtr& curLockSet, const CheckInfo& checkInfo) {
   /* starts stats related */
-  gNumCheckFuncCall++; // increment the check func call counter
   uint32_t ticketNum = 0;
   auto counterType = eUndefCounter;    
   auto modIntent = false;
@@ -161,9 +163,6 @@ rollback:
     } else {
       records = accessHistory->getRecords();
     }
-  }
-  if (records->size() > REC_NUM_THRESHOLD) {
-    gNumAccessHistoryOverflow++; 
   }
   if (accessHistory->dataRaceFound()) {
     /* 
@@ -221,7 +220,7 @@ rollback:
       if (analyzeRaceCondition(histRecord, curRecord, isHistBeforeCurrent, 
                   diffIndex)) {
         gDataRaceFound = true;
-        gNumDataRace++;
+        /*
         if (gReportLineInfo) {
           McsNode node;	
           LockGuard recordGuard(&gDataRaceLock, &node);
@@ -232,6 +231,7 @@ rollback:
           reportDataRace(histRecord.getInstnAddr(), curRecord.getInstnAddr(),
                          checkInfo.byteAddress);
         }
+        */
         accessHistory->setFlag(eDataRaceFound);  
 	break;
       }
@@ -259,9 +259,6 @@ check_finish:
   } else if (readLockHeld) {
     pfqRWLockReadUnlock(lockPtr, ticketNum); 
   }
-  counterType = getCounterType(readWriteContend, readReadContend,
-		               upgradeSuccess, modIntent, waitForDrain); 
-  statCounters[(int)counterType]++; 
 }
 
 extern "C" {
@@ -335,7 +332,7 @@ void checkAccess(void* address,
           dataSharingType);
   for (uint64_t i = 0; i < bytesAccessed / 4; ++i) {
     auto curAddress = reinterpret_cast<uint64_t>(address) + i * 4;      
-    gNumBytesChecked++; // increment the bytes checked counter
+    //gNumBytesChecked++; // increment the bytes checked counter
     if (isDupMemAccess(curTaskData, isWrite, (void*)curAddress)) {
       // if the byte is a duplicate access
       continue;
