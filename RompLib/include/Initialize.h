@@ -21,7 +21,7 @@ bool gOmptInitialized = false;
 bool gDataRaceFound = false;
 bool gReportLineInfo = false;
 bool gReportAtRuntime = false;
-Dyninst::SymtabAPI::Symtab* gSymtabHandle = nullptr;
+//Dyninst::SymtabAPI::Symtab* gSymtabHandle = nullptr;
 
 McsLock gDataRaceLock;
 std::atomic_int gNumDataRace = 0;
@@ -95,11 +95,13 @@ void omptFinalize(ompt_data_t* toolData) {
   LOG(INFO) << "finalizing ompt";
   if (gDataRaceFound) {
     LOG(INFO) << "data race found: " << gNumDataRace.load() << " races";
+/*
     if (gReportLineInfo) {
       for (const auto& info : gDataRaceRecords) {
         reportDataRaceWithLineInfo(info, gSymtabHandle);
       } 
     }
+*/
   } else {
     LOG(INFO) << "no data race found";
   }
