@@ -4,7 +4,6 @@
 #include <ompt.h>
 #include <stdlib.h>
 #include <string>
-#include <Symtab.h>
 
 #include "Callbacks.h"
 #include "CoreUtil.h"

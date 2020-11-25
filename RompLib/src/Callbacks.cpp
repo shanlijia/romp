@@ -24,11 +24,15 @@ void on_ompt_callback_implicit_task(
        unsigned int actualParallelism,
        unsigned int index,
        int flags) {
+#ifdef LOGGING
   RAW_DLOG(INFO, "on_ompt_callback_implicit_task called:%u p:%lx t:%lx %u %u %d",
           endPoint, parallelData, taskData, actualParallelism, index, flags);
+#endif
   incrementTaskId();
   if (flags == ompt_task_initial) {
+#ifdef LOGGING
     RAW_DLOG(INFO, "generating initial task: %lx", taskData);
+#endif
     auto initTaskData = new TaskData();
     auto newTaskLabel = genInitTaskLabel();
     initTaskData->label = std::move(newTaskLabel);
@@ -64,11 +68,15 @@ void on_ompt_callback_implicit_task(
             actualParallelism); 
     // return value optimization should avoid the ref count mod
     auto newTaskDataPtr = new TaskData();
+#ifdef LOGGING
     RAW_DLOG(INFO, "created task data ptr: %p stored at %p",
             newTaskDataPtr, taskData);
+#endif
     // cast to rvalue and avoid atomic ref count modification
     newTaskDataPtr->label = std::move(newTaskLabel); 
+#ifdef LOGGING
     RAW_DLOG(INFO, "%p label is: %p", newTaskDataPtr, newTaskDataPtr->label.get());
+#endif
     taskData->ptr = static_cast<void*>(newTaskDataPtr);
   } else if (endPoint == ompt_scope_end) {
     /* 
@@ -86,7 +94,9 @@ void on_ompt_callback_implicit_task(
     }
     auto mutatedLabel = mutateParentImpEnd(taskDataPtr->label.get());
     parentTaskData->label = std::move(mutatedLabel);
+#ifdef LOGGING
     RAW_DLOG(INFO, "modifying parent label: %p %p", parentTaskData);
+#endif
     delete taskDataPtr; 
     taskData->ptr = nullptr;
   }
@@ -157,8 +167,10 @@ void on_ompt_callback_sync_region(
        ompt_data_t *parallelData,
        ompt_data_t *taskData,
        const void* codePtrRa) {
+#ifdef LOGGING
   RAW_DLOG(INFO,  "on_ompt_callback_sync_region called %p %d %d", 
           taskData, kind, endPoint);
+#endif
   incrementTaskId();
   if (!taskData || !taskData->ptr) {
     RAW_LOG(FATAL, "task data pointer is null");  
@@ -176,7 +188,9 @@ void on_ompt_callback_sync_region(
         mutatedLabel = mutateTaskGroupBegin(labelPtr);
         break;
       default:
+#ifdef LOGGING
         RAW_DLOG(WARNING, "ignoring endpoint type %d", kind);
+#endif
         break;
     } 
   } else if (endPoint == ompt_scope_end) {
@@ -199,7 +213,9 @@ void on_ompt_callback_sync_region(
         taskDataPtr->inReduction = false;
         break;
       default:
+#ifdef LOGGING
         RAW_DLOG(WARNING, "ignoring endpoint type %d", kind);
+#endif
         break;
     }
   }
@@ -213,7 +229,9 @@ void on_ompt_callback_mutex_acquired(
         ompt_mutex_t kind,
         ompt_wait_id_t waitId,
         const void *codePtrRa) {
+#ifdef LOGGING
   RAW_DLOG(INFO, "on_ompt_callback_mutex_acquired called");
+#endif
   incrementTaskId();
   int taskType, threadNum;
   void* dataPtr;
@@ -227,7 +245,9 @@ void on_ompt_callback_mutex_acquired(
   if (kind == ompt_mutex_ordered) {
     mutatedLabel = mutateOrderSection(label.get()); 
   } else {
+#ifdef LOGGING
     RAW_DLOG(INFO, "mutex acquired on wait id: %lu", waitId);
+#endif
     if (taskDataPtr->lockSet == nullptr) {
       auto lockSet = std::make_shared<SmallLockSet>();
       taskDataPtr->lockSet = std::move(lockSet);
@@ -248,7 +268,9 @@ void on_ompt_callback_mutex_released(
         ompt_mutex_t kind,
         ompt_wait_id_t waitId,
         const void *codePtrRa) {
+#ifdef LOGGING
   RAW_DLOG(INFO, "on_ompt_callback_mutex_released called");
+#endif
   incrementTaskId();
   int taskType, threadNum;
   void* dataPtr;
@@ -379,7 +401,9 @@ void on_ompt_callback_work(
       ompt_data_t *taskData,
       uint64_t count,
       const void *codePtrRa) {
+#ifdef LOGGING
   RAW_DLOG(INFO, "on_ompt_callback_work called");
+#endif
   incrementTaskId();
   if (!taskData || !taskData->ptr) {
     RAW_LOG(FATAL, "task data pointer is null");
@@ -389,31 +413,45 @@ void on_ompt_callback_work(
   std::shared_ptr<Label> mutatedLabel = nullptr;
   switch(wsType) {
     case ompt_work_loop: 
+#ifdef LOGGING
       RAW_DLOG(INFO, "ompt_work_loop");
+#endif
       mutatedLabel = handleOmpWorkLoop(endPoint, label);
       break;
     case ompt_work_sections:
+#ifdef LOGGING
       RAW_DLOG(INFO, "ompt_work_sections");
+#endif
       mutatedLabel = handleOmpWorkSections(endPoint, label, count);
       break;
     case ompt_work_single_executor:
+#ifdef LOGGING
       RAW_DLOG(INFO, "ompt_work_single_executor");
+#endif
       mutatedLabel = handleOmpWorkSingleExecutor(endPoint, label);
       break;
     case ompt_work_single_other:
+#ifdef LOGGING
       RAW_DLOG(INFO, "ompt_work_single_other");
+#endif
       mutatedLabel = handleOmpWorkSingleOther(endPoint, label);
       break;
     case ompt_work_workshare:
+#ifdef LOGGING
       RAW_DLOG(INFO, "ompt_work_workshare");
+#endif
       mutatedLabel = handleOmpWorkWorkShare(endPoint, label, count);
       break;
     case ompt_work_distribute:
+#ifdef LOGGING
       RAW_DLOG(INFO, "ompt_work_distribute");
+#endif
       mutatedLabel = handleOmpWorkDistribute(endPoint, label, count);
       break;
     case ompt_work_taskloop:
+#ifdef LOGGING
       RAW_DLOG(INFO, "ompt_work_taskloop");
+#endif
       mutatedLabel = handleOmpWorkTaskLoop(endPoint, label, count);
       break;
     default:
@@ -429,8 +467,10 @@ void on_ompt_callback_parallel_begin(
        unsigned int requestedParallelism,
        int flags,
        const void *codePtrRa) {
+#ifdef LOGGING
   RAW_DLOG(INFO, "parallel begin et:%lx p:%lx %u %d", encounteringTaskData, 
            parallelData, requestedParallelism, flags);
+#endif
   incrementTaskId();
   auto parRegionData = new ParRegionData(requestedParallelism, flags);
   parallelData->ptr = static_cast<void*>(parRegionData);  
@@ -441,11 +481,13 @@ void on_ompt_callback_parallel_end(
        ompt_data_t *encounteringTaskData,
        int flags,
        const void *codePtrRa) {
+#ifdef LOGGING
   RAW_DLOG(INFO, "parallel end et:%lx p:%lx par data: %lx flag:%lx", 
 		  encounteringTaskData, 
 		  parallelData,
 		  parallelData->ptr,
                   flags);
+#endif
   incrementTaskId();
   auto parRegionData = parallelData->ptr;
   delete static_cast<ParRegionData*>(parRegionData);
@@ -466,7 +508,9 @@ void on_ompt_callback_task_create(
      * creation ompt callback is moved to ompt_callback_implicit_task. The code 
      * here is not executed. We leave the code here for backward compatibility.
      */
+#ifdef LOGGING
     RAW_DLOG(INFO, "generating initial task: %lx", taskData);
+#endif
     auto newTaskLabel = genInitTaskLabel();
     taskData->label = std::move(newTaskLabel);
   } else if (flags == ompt_task_explicit) {
@@ -492,7 +536,10 @@ void on_ompt_callback_task_create(
       auto parallelData = static_cast<ParRegionData*>(parallelDataPtr);
       auto taskId = parallelData->expTaskCount.fetch_add(1, 
 		      std::memory_order_relaxed);
+#ifdef LOGGING
       RAW_DLOG(INFO, "explicit task create, local id: %d", taskId);
+#endif
+
       taskData->expLocalId = taskId;        
     }	    
   } else if (flags == ompt_task_target) {
@@ -518,7 +565,9 @@ void on_ompt_callback_task_schedule(
         ompt_data_t *priorTaskData,
         ompt_task_status_t priorTaskStatus,
         ompt_data_t *nextTaskData) {
+#ifdef LOGGING
   RAW_DLOG(INFO, "ompt_callback_task_schedule"); 
+#endif
   auto taskPtr = priorTaskData->ptr;
   incrementTaskId();
   if (!taskPtr) {
@@ -526,13 +575,17 @@ void on_ompt_callback_task_schedule(
   }
   switch(priorTaskStatus) {
     case ompt_task_complete:
+#ifdef LOGGING
       RAW_DLOG(INFO, "task complete encountered");
+#endif
       handleTaskComplete(taskPtr);
       recycleTaskThreadStackMemory(taskPtr);
       recycleTaskPrivateMemory();
       break;
     case ompt_task_yield:
+#ifdef LOGGING
       RAW_DLOG(INFO, "taskyield construct encountered");
+#endif
       break;
     case ompt_task_cancel:
       RAW_LOG(INFO, "task cancel encountered");
@@ -547,7 +600,9 @@ void on_ompt_callback_task_schedule(
       RAW_LOG(INFO, "task late fulfill encountered");
       break;
     case ompt_task_switch:
+#ifdef LOGGING
       RAW_DLOG(INFO, "task switch encountered");
+#endif
       recycleTaskThreadStackMemory(taskPtr);
       recycleTaskPrivateMemory();
       break;
@@ -558,7 +613,9 @@ void on_ompt_callback_dependences(
         ompt_data_t *taskData,
         const ompt_dependence_t *deps,
         int ndeps) {
+#ifdef LOGGING
   RAW_DLOG(INFO, "callback dependencies -- num deps: %lu", ndeps);
+#endif
   incrementTaskId();
   auto teamSize = 0;
   void* parallelDataPtr = nullptr;

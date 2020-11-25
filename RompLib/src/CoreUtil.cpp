@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-using namespace Dyninst;
-using namespace SymtabAPI;
+//using namespace Dyninst;
+//using namespace SymtabAPI;
 
 namespace romp {
 
@@ -43,6 +43,7 @@ bool prepareAllInfo(int& taskType,
  * the inefficiency of parsing debug information everytime for every 
  * instruction address. 
  */
+/*
 void reportDataRaceWithLineInfo(const DataRaceInfo& info, Symtab* symtab) {
   auto instnPrev = reinterpret_cast<uint64_t>(info.instnAddrPrev);
   auto instnCur = reinterpret_cast<uint64_t>(info.instnAddrCur);
@@ -83,6 +84,7 @@ void reportDataRaceWithLineInfo(const DataRaceInfo& info, Symtab* symtab) {
             info.memAddr, prevFileName.c_str(), instnPrev, prevLine, prevColumn);
   }
 }
+*/
 
 void reportDataRace(void* instnAddrPrev, void* instnAddrCur, uint64_t memAddr) {
   RAW_LOG(INFO, "instn addr: %p vs instn addr: %p @ %p", 

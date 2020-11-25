@@ -1,6 +1,5 @@
 #pragma once
 #include <utility>
-#include <Symtab.h>
 
 #include "DataSharing.h"
 #include "QueryFuncs.h"
@@ -64,10 +63,13 @@ bool prepareAllInfo(int& taskType,
                     void*& curThreadData,
                     AllTaskInfo& allTaskInfo);
 
+/*
 void reportDataRaceWithLineInfo(const DataRaceInfo& dataRaceInfo,
                                 Dyninst::SymtabAPI::Symtab* symtabHandle);
+*/
 
 void reportDataRace(void* instnAddrPrev, void* instnAddrCur, uint64_t address);
+
 
 void* computeAddressRangeEnd(void* baseAddr, size_t chunkSize);
 

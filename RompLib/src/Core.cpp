@@ -1580,6 +1580,9 @@ void modifyAccessHistory(RecordAction action,
     it = records->begin();
   } else {
     RAW_LOG(WARNING, "unexpected action");
+    if (records == nullptr) {
+      RAW_LOG(FATAL, "records is null");
+    }
     it = records->insert(it, curRecord);   
     it++;
     it++;
